@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
+import re
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -56,15 +57,17 @@ div[data-testid="metric-container"] {
 }
 
 .stTabs [data-baseweb="tab-list"] {
-    gap:4px; background:#1D3461;
-    padding:8px 8px 0; border-radius:10px 10px 0 0;
+    gap:0; background:#1D3461;
+    padding:0 8px; border-radius:10px 10px 0 0;
 }
 .stTabs [data-baseweb="tab"] {
-    background:rgba(255,255,255,.12); color:#a8c2d8;
-    border-radius:6px 6px 0 0; padding:8px 18px; font-size:13px;
+    background:transparent; color:rgba(255,255,255,.65);
+    border-radius:0; padding:10px 18px; font-size:13px;
+    border-bottom:2px solid transparent;
 }
 .stTabs [aria-selected="true"] {
-    background:white !important; color:#1D3461 !important; font-weight:700;
+    background:transparent !important; color:white !important;
+    font-weight:700; border-bottom:2px solid white !important;
 }
 .stTabs [data-baseweb="tab-panel"] {
     background:white; border-radius:0 0 10px 10px;
@@ -145,13 +148,20 @@ def pot_bar_html(val):
             f'<div style="width:{pct}%;height:5px;background:#1D3461;border-radius:3px"></div>'
             f'</div><span style="font-size:10px;color:#9ca3af">{int(val)}/5</span></div>')
 
+def render_html(html):
+    """Render HTML safely — strips leading whitespace per line to avoid Markdown code-block treatment."""
+    st.markdown(re.sub(r'\n[ \t]+', '\n', html).strip(), unsafe_allow_html=True)
+
 # ── HEADER ────────────────────────────────────────────────────────────────────
 h1, h2, h3 = st.columns([1, 7, 1])
 with h1:
-    try:
-        st.image("logo-ixko-new-01.png", width=90)
-    except Exception:
-        st.markdown("**IKXO**")
+    st.markdown(
+        '<div style="padding-top:8px">'
+        '<span style="font-size:24px;font-weight:900;color:#1D3461;letter-spacing:-1px">'
+        'IK<span style="color:#3B82F6">X</span>O'
+        '</span></div>',
+        unsafe_allow_html=True
+    )
 with h2:
     st.markdown("## 👩‍🚀 Suivi Comptes Stratégiques")
 with h3:
@@ -264,56 +274,52 @@ with tab_ov:
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_pipe:
     st.markdown("**🔄 Pipeline de prospection**")
-    cols = st.columns(len(PIPELINE_STAGES))
 
-    for i, stage in enumerate(PIPELINE_STAGES):
+    # Single st.markdown() for entire board — avoids st.columns+HTML rendering issues
+    board_parts = []
+    for stage in PIPELINE_STAGES:
         stage_df = df[df.etat == stage].sort_values('nom')
         cfg = ETAT_CFG.get(stage, {"color":"#9CA3AF","bg":"#F9FAFB"})
+        n = len(stage_df)
 
-        cards_html = ""
+        cards = []
         for _, acc in stage_df.iterrows():
             rc_c = RC_COLORS.get(acc.rc, '#9CA3AF')
-            rc_part = (f'<span style="float:right;color:{rc_c};font-weight:700">{acc.rc}</span>'
-                       if acc.rc else '')
-            date_part = (f'<div style="color:#a8c2d8;font-size:10px;margin-top:2px">{acc.date_attaque}</div>'
-                         if acc.date_attaque else '')
-            cards_html += f"""
-            <div class="account-card">
-              <a href="{acc.url}" target="_blank"
-                 style="color:#1D3461;font-weight:600;font-size:11px;text-decoration:none">
-                {acc.nom}
-              </a>{rc_part}
-              <div style="clear:both;color:#9ca3af;font-size:10px;margin-top:1px">{acc.secteur}</div>
-              {date_part}
-            </div>"""
+            rc_part = (f'<span style="float:right;color:{rc_c};font-weight:700;font-size:11px">{acc.rc}</span>' if acc.rc else '')
+            date_part = (f'<div style="color:#a8c2d8;font-size:10px;margin-top:2px">{acc.date_attaque}</div>' if acc.date_attaque else '')
+            cards.append(
+                f'<div style="background:white;border:1px solid #e8eef8;border-radius:8px;padding:9px 10px;margin-bottom:5px;font-size:12px">'
+                f'<a href="{acc.url}" target="_blank" style="color:#1D3461;font-weight:600;font-size:11px;text-decoration:none">{acc.nom}</a>'
+                f'{rc_part}'
+                f'<div style="clear:both;color:#9ca3af;font-size:10px;margin-top:1px">{acc.secteur}</div>'
+                f'{date_part}'
+                f'</div>'
+            )
 
-        col_html = f"""
-        <div style="background:white;border-radius:8px;overflow:hidden;
-                    box-shadow:0 1px 4px rgba(0,0,0,.07)">
-          <div style="background:{cfg['bg']};padding:8px 10px;
-                      border-bottom:2px solid {cfg['color']}">
-            <div style="font-weight:700;font-size:12px;color:{cfg['color']}">{stage}</div>
-            <div style="font-size:10px;color:#9ca3af">{len(stage_df)} compte{'s' if len(stage_df)!=1 else ''}</div>
-          </div>
-          <div style="max-height:420px;overflow-y:auto;padding:6px">
-            {cards_html or '<p style="text-align:center;color:#d1d5db;font-size:12px;padding:16px 0">—</p>'}
-          </div>
-        </div>"""
-        with cols[i]:
-            st.markdown(col_html, unsafe_allow_html=True)
+        cards_inner = ''.join(cards) or '<p style="text-align:center;color:#d1d5db;font-size:12px;padding:16px 0">—</p>'
+        board_parts.append(
+            f'<div style="flex:0 0 155px;min-width:155px">'
+            f'<div style="border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">'
+            f'<div style="background:{cfg["bg"]};padding:8px 10px;border-bottom:2px solid {cfg["color"]}">'
+            f'<div style="font-weight:700;font-size:12px;color:{cfg["color"]}">{stage}</div>'
+            f'<div style="font-size:10px;color:#9ca3af">{n} compte{"s" if n!=1 else ""}</div>'
+            f'</div>'
+            f'<div style="max-height:420px;overflow-y:auto;padding:6px;background:white">'
+            f'{cards_inner}'
+            f'</div></div></div>'
+        )
+
+    board_html = '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px">' + ''.join(board_parts) + '</div>'
+    st.markdown(board_html, unsafe_allow_html=True)
 
     st.markdown("---")
     sc1, sc2 = st.columns(2)
     for col, stage in zip([sc1, sc2], SIDE_STAGES):
         side_df = df[df.etat == stage]
-        cfg = ETAT_CFG.get(stage, {"color":"#9CA3AF","bg":"#F9FAFB"})
         with col:
             with st.expander(f"{stage} ({len(side_df)})", expanded=False):
-                tags = " ".join([
-                    f'<a href="{r.url}" target="_blank" style="display:inline-block;'
-                    f'background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;'
-                    f'padding:3px 8px;font-size:12px;color:#6b7280;text-decoration:none;'
-                    f'margin:2px">{r.nom}</a>'
+                tags = ''.join([
+                    f'<a href="{r.url}" target="_blank" style="display:inline-block;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px;color:#6b7280;text-decoration:none;margin:2px">{r.nom}</a>'
                     for _, r in side_df.iterrows()
                 ])
                 st.markdown(tags or "Aucun compte", unsafe_allow_html=True)
@@ -333,34 +339,28 @@ with tab_plan:
         label = f"📅 **{month}** — {len(mdf)} compte{'s' if len(mdf)!=1 else ''}"
 
         with st.expander(label, expanded=True):
-            st.markdown(etat_summary, unsafe_allow_html=True)
-            rows_html = ""
+            render_html(etat_summary)
+            rows_parts = []
             for _, acc in mdf.iterrows():
                 rc_c = RC_COLORS.get(acc.rc,'#9CA3AF')
                 pot  = f"Pot.{int(acc.potentiel)}/5" if pd.notna(acc.potentiel) else ""
-                rows_html += f"""
-                <div style="display:flex;align-items:center;justify-content:space-between;
-                            padding:7px 4px;border-bottom:1px solid #f0f0f0">
-                  <div>
-                    <a href="{acc.url}" target="_blank"
-                       style="font-weight:600;color:#1e293b;text-decoration:none">{acc.nom}</a>
-                    <span style="font-size:11px;color:#9ca3af;margin-left:8px">{acc.secteur}</span>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-                    {etat_badge(acc.etat)}
-                    {'<span style="font-size:12px;font-weight:700;color:'+rc_c+'">'+acc.rc+'</span>' if acc.rc else ''}
-                    {'<span style="font-size:11px;color:#9ca3af">'+pot+'</span>' if pot else ''}
-                  </div>
-                </div>"""
-            st.markdown(rows_html, unsafe_allow_html=True)
+                rows_parts.append(
+                    f'<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;border-bottom:1px solid #f0f0f0">'
+                    f'<div><a href="{acc.url}" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none">{acc.nom}</a>'
+                    f'<span style="font-size:11px;color:#9ca3af;margin-left:8px">{acc.secteur}</span></div>'
+                    f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
+                    f'{etat_badge(acc.etat)}'
+                    f'{"<span style='font-size:12px;font-weight:700;color:"+rc_c+"'>"+acc.rc+"</span>" if acc.rc else ""}'
+                    f'{"<span style='font-size:11px;color:#9ca3af'>"+pot+"</span>" if pot else ""}'
+                    f'</div></div>'
+                )
+            st.markdown(''.join(rows_parts), unsafe_allow_html=True)
 
     no_date = df[df.date_attaque == '']
     if not no_date.empty:
         with st.expander(f"Sans date d'attaque ({len(no_date)})", expanded=False):
-            tags = " ".join([
-                f'<a href="{r.url}" target="_blank" style="display:inline-block;background:#f3f4f6;'
-                f'border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px;'
-                f'color:#6b7280;text-decoration:none;margin:2px">{r.nom}</a>'
+            tags = ''.join([
+                f'<a href="{r.url}" target="_blank" style="display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px;color:#6b7280;text-decoration:none;margin:2px">{r.nom}</a>'
                 for _, r in no_date.iterrows()
             ])
             st.markdown(tags, unsafe_allow_html=True)
@@ -459,38 +459,36 @@ with tab_mat:
     p4 = mat_df[(mat_df.potentiel<3)&(mat_df.accessibilite<3)]
 
     def quadrant_list(qdf, label, color, border, limit=8):
-        items = ""
+        item_parts = []
         for _, acc in qdf.head(limit).iterrows():
             rc_c = RC_COLORS.get(acc.rc,'#9CA3AF')
-            items += f"""
-            <div style="display:flex;justify-content:space-between;align-items:center;
-                        padding:6px 4px;border-bottom:1px solid #f5f5f5;font-size:13px">
-              <div style="flex:1;min-width:0">
-                <a href="{acc.url}" target="_blank"
-                   style="font-weight:600;color:#1e293b;text-decoration:none;
-                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-                          display:block">{acc.nom}</a>
-                <span style="font-size:11px;color:#9ca3af">{acc.secteur}</span>
-              </div>
-              <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:8px">
-                {'<span style="color:'+rc_c+';font-weight:700;font-size:12px">'+acc.rc+'</span>' if acc.rc else ''}
-                <span style="font-size:11px;color:#9ca3af">{int(acc.potentiel)}/{int(acc.accessibilite)}</span>
-                {etat_badge(acc.etat)}
-              </div>
-            </div>"""
+            item_parts.append(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-bottom:1px solid #f5f5f5;font-size:13px">'
+                f'<div style="flex:1;min-width:0">'
+                f'<a href="{acc.url}" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">{acc.nom}</a>'
+                f'<span style="font-size:11px;color:#9ca3af">{acc.secteur}</span>'
+                f'</div>'
+                f'<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:8px">'
+                f'{"<span style='color:"+rc_c+";font-weight:700;font-size:12px'>"+acc.rc+"</span>" if acc.rc else ""}'
+                f'<span style="font-size:11px;color:#9ca3af">{int(acc.potentiel)}/{int(acc.accessibilite)}</span>'
+                f'{etat_badge(acc.etat)}'
+                f'</div></div>'
+            )
+        items = ''.join(item_parts)
         if len(qdf) > limit:
             items += f'<div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px">+ {len(qdf)-limit} autres</div>'
         if not items:
             items = '<div style="text-align:center;font-size:12px;color:#d1d5db;padding:12px">Aucun compte</div>'
 
-        return f"""
-        <div style="border-left:4px solid {border};padding-left:12px;margin-bottom:8px">
-          <span style="font-weight:700;color:{color}">{label}</span>
-          <span style="color:#9ca3af"> ({len(qdf)})</span>
-        </div>
-        <div style="background:white;border:1px solid {border};border-radius:8px;overflow:hidden">
-          {items}
-        </div>"""
+        return (
+            f'<div style="border-left:4px solid {border};padding-left:12px;margin-bottom:8px">'
+            f'<span style="font-weight:700;color:{color}">{label}</span>'
+            f'<span style="color:#9ca3af"> ({len(qdf)})</span>'
+            f'</div>'
+            f'<div style="background:white;border:1px solid {border};border-radius:8px;overflow:hidden">'
+            f'{items}'
+            f'</div>'
+        )
 
     q1, q2 = st.columns(2)
     with q1:
@@ -534,16 +532,16 @@ with tab_all:
 
     display = filt[["nom","secteur","rc","etat","typologie","date_attaque","potentiel","accessibilite","url"]].copy()
     display.columns = ["Compte","Secteur","RC","État","Typologie","Date d'attaque","Potentiel","Accessibilité","↗ Notion"]
-    display["Potentiel"]    = display["Potentiel"].astype("Float64")
-    display["Accessibilité"]= display["Accessibilité"].astype("Float64")
+    display["Potentiel"]    = pd.to_numeric(display["Potentiel"],    errors='coerce')
+    display["Accessibilité"]= pd.to_numeric(display["Accessibilité"], errors='coerce')
 
     st.dataframe(
         display,
         column_config={
             "Compte":        st.column_config.TextColumn("Compte", width="large"),
             "↗ Notion":      st.column_config.LinkColumn("↗ Notion", display_text="Ouvrir"),
-            "Potentiel":     st.column_config.ProgressColumn("Potentiel",    min_value=0, max_value=5, format="%d/5"),
-            "Accessibilité": st.column_config.ProgressColumn("Accessibilité",min_value=0, max_value=5, format="%d/5"),
+            "Potentiel":     st.column_config.ProgressColumn("Potentiel",    min_value=0, max_value=5, format="%.0f/5"),
+            "Accessibilité": st.column_config.ProgressColumn("Accessibilité",min_value=0, max_value=5, format="%.0f/5"),
         },
         hide_index=True,
         use_container_width=True,
