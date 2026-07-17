@@ -3,6 +3,8 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 import re
+import json
+from html import escape as he
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -33,6 +35,57 @@ ETAT_CFG = {
 RC_COLORS = {'Alex':'#3B82F6','Clarisse':'#EC4899','Auré':'#10B981','Jerem':'#8B5CF6'}
 MONTHS    = ['Juin 26','Juillet 26','Août 26','Septembre 26','Octobre 26']
 
+# ── SVG LOGO (IKXO) ───────────────────────────────────────────────────────────
+# Navy #1D3461 · Sage green #6BA58A
+# I = solid navy bar
+# K = sage-green left stem + navy arms
+# X = crossing navy strokes
+# O = navy ring + sage-green circle upper-right
+LOGO_SVG = (
+    '<svg viewBox="0 0 432 120" xmlns="http://www.w3.org/2000/svg" height="44" aria-label="IKXO">'
+    '<defs>'
+    '<mask id="omask">'
+    '<circle cx="372" cy="60" r="57" fill="white"/>'
+    '<circle cx="372" cy="60" r="28" fill="black"/>'
+    '</mask>'
+    '<clipPath id="xclip"><rect x="151" y="0" width="82" height="120"/></clipPath>'
+    '</defs>'
+    '<rect x="0" y="2" width="32" height="116" fill="#1D3461" rx="2"/>'
+    '<rect x="52" y="2" width="15" height="116" fill="#6BA58A" rx="1"/>'
+    '<polygon points="67,2 67,62 130,2" fill="#1D3461"/>'
+    '<polygon points="67,62 67,118 130,118" fill="#1D3461"/>'
+    '<g clip-path="url(#xclip)">'
+    '<line x1="152" y1="0" x2="233" y2="120" stroke="#1D3461" stroke-width="30" stroke-linecap="butt"/>'
+    '<line x1="233" y1="0" x2="152" y2="120" stroke="#1D3461" stroke-width="30" stroke-linecap="butt"/>'
+    '</g>'
+    '<circle cx="372" cy="60" r="57" fill="#1D3461"/>'
+    '<circle cx="400" cy="33" r="50" fill="#6BA58A" mask="url(#omask)"/>'
+    '<circle cx="372" cy="60" r="28" fill="#f0f4f8"/>'
+    '</svg>'
+)
+
+# ── JS ONCLICK CONSTANTS ──────────────────────────────────────────────────────
+# Opens account-detail modal (pipeline cards)
+_OA = (
+    "var m=document.getElementById('ikxo-modal');"
+    "document.getElementById('im-nom').textContent=this.dataset.nom;"
+    "document.getElementById('im-rc').textContent=this.dataset.rc?'RC : '+this.dataset.rc:'';"
+    "document.getElementById('im-secteur').textContent=this.dataset.sec;"
+    "document.getElementById('im-date').textContent=this.dataset.date||'—';"
+    "document.getElementById('im-pot').textContent=this.dataset.pot?this.dataset.pot+'/5':'—';"
+    "document.getElementById('im-acc').textContent=this.dataset.acc?this.dataset.acc+'/5':'—';"
+    "document.getElementById('im-url').href=this.dataset.url;"
+    "document.getElementById('im-etat-badge').innerHTML=this.dataset.ebadge;"
+    "m.style.display='flex'"
+)
+
+# Opens account-list modal (metrics / RC bars / sector bars)
+_OL = (
+    "document.getElementById('ilm-title').textContent=this.dataset.title;"
+    "document.getElementById('ilm-body').innerHTML=this.dataset.html;"
+    "document.getElementById('ikxo-list-modal').style.display='flex'"
+)
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -44,40 +97,141 @@ st.markdown("""
     display:inline-block; padding:2px 8px; border-radius:9999px;
     font-size:11px; font-weight:600; white-space:nowrap;
 }
-.account-card {
-    background:white; border:1px solid #e8eef8; border-radius:8px;
-    padding:9px 10px; margin-bottom:5px; font-size:12px;
-    transition: box-shadow .15s;
-}
-.account-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 
 div[data-testid="metric-container"] {
     background:white; border:1px solid #e5e7eb; border-radius:12px;
     padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.05);
 }
 
+/* ── TABS ── */
 .stTabs [data-baseweb="tab-list"] {
     gap:0; background:#1D3461;
     padding:0 8px; border-radius:10px 10px 0 0;
 }
 .stTabs [data-baseweb="tab"] {
-    background:transparent; color:rgba(255,255,255,.65);
-    border-radius:0; padding:10px 18px; font-size:13px;
-    border-bottom:2px solid transparent;
+    background:transparent; color:rgba(255,255,255,.6);
+    border-radius:8px 8px 0 0; padding:10px 18px; font-size:13px;
+    border-bottom:2px solid transparent; transition:all .15s;
 }
 .stTabs [aria-selected="true"] {
-    background:transparent !important; color:white !important;
-    font-weight:700; border-bottom:2px solid white !important;
+    background:rgba(255,255,255,0.18) !important;
+    color:white !important; font-weight:700;
+    border-bottom:2px solid white !important;
 }
 .stTabs [data-baseweb="tab-panel"] {
     background:white; border-radius:0 0 10px 10px;
     padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.06);
 }
 
+/* ── PIPELINE CARDS ── */
+.pipe-card {
+    background:white; border:1px solid #e8eef8; border-radius:8px;
+    padding:9px 10px; margin-bottom:5px; font-size:12px;
+    cursor:pointer; user-select:none;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.pipe-card:hover {
+    transform: translateY(-3px) scale(1.015);
+    box-shadow: 0 6px 16px rgba(29,52,97,.14);
+    border-color: #a8c2d8;
+}
+.pipe-card:active { transform:translateY(-1px) scale(1.005); }
+
+/* ── METRIC CARDS (clickable) ── */
+.metric-click {
+    background:white; border:1px solid #e5e7eb; border-radius:12px;
+    padding:16px 12px; text-align:center; cursor:pointer;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.metric-click:hover {
+    transform:translateY(-2px);
+    box-shadow:0 6px 16px rgba(29,52,97,.10);
+    border-color:#a8c2d8;
+}
+.metric-click:active { transform:translateY(0); }
+
+/* ── CLICKABLE BARS ── */
+.click-row {
+    border-radius:6px; padding:4px 6px; margin:-4px -6px; cursor:pointer;
+    transition: background .12s;
+}
+.click-row:hover { background:rgba(29,52,97,.05); }
+
+/* ── MODALS ── */
+#ikxo-modal, #ikxo-list-modal {
+    display:none; position:fixed; inset:0; z-index:99999;
+    background:rgba(15,23,42,.5); backdrop-filter:blur(4px);
+    align-items:center; justify-content:center;
+}
+#ikxo-modal .mbox, #ikxo-list-modal .mbox {
+    background:white; border-radius:16px; padding:24px 28px;
+    width:90%; max-height:80vh; overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.25);
+    animation:mi .18s ease;
+    position:relative;
+}
+#ikxo-modal .mbox { max-width:480px; }
+#ikxo-list-modal .mbox { max-width:560px; }
+@keyframes mi {
+    from { opacity:0; transform:scale(.93) translateY(10px); }
+    to   { opacity:1; transform:scale(1) translateY(0); }
+}
+.mclose {
+    position:absolute; top:16px; right:20px;
+    background:none; border:none; font-size:22px;
+    cursor:pointer; color:#9ca3af; line-height:1;
+}
+.mclose:hover { color:#1D3461; }
+
 div[data-testid="stExpander"] {
     border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; margin-bottom:8px;
 }
 </style>
+""", unsafe_allow_html=True)
+
+# ── MODALS HTML ───────────────────────────────────────────────────────────────
+st.markdown("""
+<div id="ikxo-modal" onclick="if(event.target.id==='ikxo-modal')this.style.display='none'">
+<div class="mbox">
+  <button class="mclose" onclick="document.getElementById('ikxo-modal').style.display='none'">&#x2715;</button>
+  <div id="im-etat-badge" style="margin-bottom:8px"></div>
+  <h3 id="im-nom" style="margin:0 0 4px;color:#1D3461;font-size:20px;padding-right:24px"></h3>
+  <div id="im-rc" style="font-size:13px;color:#6b7280;margin-bottom:18px"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+    <div style="background:#f8fafc;border-radius:8px;padding:10px">
+      <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Secteur</div>
+      <div id="im-secteur" style="font-size:14px;font-weight:600;color:#1e293b"></div>
+    </div>
+    <div style="background:#f8fafc;border-radius:8px;padding:10px">
+      <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Date d&apos;attaque</div>
+      <div id="im-date" style="font-size:14px;font-weight:600;color:#1e293b"></div>
+    </div>
+    <div style="background:#f8fafc;border-radius:8px;padding:10px">
+      <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Potentiel</div>
+      <div id="im-pot" style="font-size:14px;font-weight:600;color:#1D3461"></div>
+    </div>
+    <div style="background:#f8fafc;border-radius:8px;padding:10px">
+      <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Accessibilit&eacute;</div>
+      <div id="im-acc" style="font-size:14px;font-weight:600;color:#1D3461"></div>
+    </div>
+  </div>
+  <a id="im-url" href="#" target="_blank"
+     style="display:block;text-align:center;background:#1D3461;color:white;text-decoration:none;
+            border-radius:8px;padding:11px;font-weight:600;font-size:14px;
+            transition:background .12s">
+    &#8599; Voir sur Notion
+  </a>
+</div>
+</div>
+
+<div id="ikxo-list-modal" onclick="if(event.target.id==='ikxo-list-modal')this.style.display='none'">
+<div class="mbox">
+  <button class="mclose" onclick="document.getElementById('ikxo-list-modal').style.display='none'">&#x2715;</button>
+  <h3 id="ilm-title" style="margin:0 0 16px;color:#1D3461;font-size:18px;padding-right:24px"></h3>
+  <div id="ilm-body"></div>
+</div>
+</div>
 """, unsafe_allow_html=True)
 
 # ── NOTION DATA ───────────────────────────────────────────────────────────────
@@ -133,11 +287,44 @@ def fetch_accounts():
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def etat_badge(etat):
     c = ETAT_CFG.get(etat, {"color":"#6B7280","bg":"#F3F4F6"})
-    return f'<span class="badge" style="background:{c["bg"]};color:{c["color"]}">{etat}</span>'
+    return f'<span class="badge" style="background:{c["bg"]};color:{c["color"]}">{he(etat)}</span>'
 
 def rc_span(rc):
     color = RC_COLORS.get(rc, '#9CA3AF')
-    return f'<span style="color:{color};font-weight:700;font-size:12px">{rc}</span>'
+    return f'<span style="color:{color};font-weight:700;font-size:12px">{he(rc)}</span>'
+
+def render_html(html):
+    st.markdown(re.sub(r'\n[ \t]+', '\n', html).strip(), unsafe_allow_html=True)
+
+def list_html_for(acc_df, limit=60):
+    """Pre-render account list as HTML string — then HTML-escape for data attribute."""
+    parts = []
+    for _, acc in acc_df.head(limit).iterrows():
+        rc_c = RC_COLORS.get(acc.rc, '#9CA3AF')
+        cfg  = ETAT_CFG.get(acc.etat, {"color":"#6B7280","bg":"#F3F4F6"})
+        rc_tag = (f'<span style="color:{rc_c};font-weight:700;font-size:12px;margin-right:6px">{he(acc.rc)}</span>'
+                  if acc.rc else '')
+        parts.append(
+            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+            f'padding:8px 4px;border-bottom:1px solid #f0f4f8">'
+            f'<div style="flex:1;min-width:0">'
+            f'<a href="{he(acc.url)}" target="_blank" '
+            f'style="font-weight:600;color:#1D3461;text-decoration:none;font-size:13px">{he(acc.nom)}</a>'
+            f'<div style="font-size:11px;color:#9ca3af">{he(acc.secteur)}</div>'
+            f'</div>'
+            f'<div style="display:flex;align-items:center;flex-shrink:0;margin-left:8px">'
+            f'{rc_tag}'
+            f'<span style="display:inline-block;padding:2px 7px;border-radius:9999px;'
+            f'font-size:11px;font-weight:600;background:{cfg["bg"]};color:{cfg["color"]}">'
+            f'{he(acc.etat)}</span>'
+            f'</div></div>'
+        )
+    if len(acc_df) > limit:
+        parts.append(f'<div style="text-align:center;font-size:11px;color:#9ca3af;padding:8px">+ {len(acc_df)-limit} autres</div>')
+    if not parts:
+        parts.append('<div style="text-align:center;color:#9ca3af;padding:20px">Aucun compte</div>')
+    return he(''.join(parts))  # HTML-escape for data attribute
+
 
 def pot_bar_html(val):
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -148,20 +335,10 @@ def pot_bar_html(val):
             f'<div style="width:{pct}%;height:5px;background:#1D3461;border-radius:3px"></div>'
             f'</div><span style="font-size:10px;color:#9ca3af">{int(val)}/5</span></div>')
 
-def render_html(html):
-    """Render HTML safely — strips leading whitespace per line to avoid Markdown code-block treatment."""
-    st.markdown(re.sub(r'\n[ \t]+', '\n', html).strip(), unsafe_allow_html=True)
-
 # ── HEADER ────────────────────────────────────────────────────────────────────
 h1, h2, h3 = st.columns([1, 7, 1])
 with h1:
-    st.markdown(
-        '<div style="padding-top:8px">'
-        '<span style="font-size:24px;font-weight:900;color:#1D3461;letter-spacing:-1px">'
-        'IK<span style="color:#3B82F6">X</span>O'
-        '</span></div>',
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div style="padding-top:6px">{LOGO_SVG}</div>', unsafe_allow_html=True)
 with h2:
     st.markdown("## 👩‍🚀 Suivi Comptes Stratégiques")
 with h3:
@@ -196,17 +373,36 @@ tab_ov, tab_pipe, tab_plan, tab_mat, tab_all = st.tabs([
 # TAB 1 — VUE GÉNÉRALE
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_ov:
-    total   = len(df)
-    clients = (df.etat == 'Client').sum()
-    en_cours= df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance']).sum()
-    strat   = (df.typologie == 'Stratégique').sum()
+    total    = len(df)
+    clients  = (df.etat == 'Client').sum()
+    en_cours = df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance']).sum()
+    strat    = (df.typologie == 'Stratégique').sum()
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("🏢 Total comptes", int(total))
-    c2.metric("⭐ Stratégiques",  int(strat))
-    c3.metric("🔥 En closing",    int(en_cours))
-    c4.metric("✅ Clients",        int(clients))
+    df_total  = df
+    df_strat  = df[df.typologie == 'Stratégique']
+    df_encours= df[df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance'])]
+    df_client = df[df.etat == 'Client']
 
+    # Clickable metrics
+    m1, m2, m3, m4 = st.columns(4)
+    for col, label, icon, val, fdf, tip in [
+        (m1, "Total comptes",   "🏢", total,    df_total,   "Tous les comptes"),
+        (m2, "Stratégiques",    "⭐", int(strat),df_strat,  "Comptes stratégiques"),
+        (m3, "En closing",      "🔥", int(en_cours), df_encours, "Comptes en cours (1 rdv → Soutenance)"),
+        (m4, "Clients",         "✅", int(clients),  df_client, "Clients actifs"),
+    ]:
+        lh = list_html_for(fdf)
+        with col:
+            st.markdown(
+                f'<div class="metric-click" data-title="{he(tip)}" data-html="{lh}" onclick="{_OL}">'
+                f'<div style="font-size:11px;color:#6b7280;margin-bottom:4px">{icon} {he(label)}</div>'
+                f'<div style="font-size:32px;font-weight:800;color:#1D3461;line-height:1">{val}</div>'
+                f'<div style="font-size:10px;color:#a8c2d8;margin-top:4px">Cliquer pour voir ↗</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     st.markdown("---")
     col_l, col_r = st.columns(2)
 
@@ -237,20 +433,23 @@ with tab_ov:
             rc_df = df[df.rc == rc]
             if rc_df.empty:
                 continue
-            n      = len(rc_df)
-            en_c   = rc_df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance']).sum()
-            cli    = (rc_df.etat=='Client').sum()
-            pct    = int(n/total*100)
-            st.markdown(f"""
-            <div style="margin-bottom:12px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-                <span style="font-weight:700;color:{color}">{rc}</span>
-                <span style="font-size:11px;color:#9ca3af">{n} comptes · {en_c} en cours · {cli} clients</span>
-              </div>
-              <div style="background:#e5e7eb;border-radius:4px;height:8px">
-                <div style="width:{pct}%;background:{color};height:8px;border-radius:4px"></div>
-              </div>
-            </div>""", unsafe_allow_html=True)
+            n    = len(rc_df)
+            en_c = rc_df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance']).sum()
+            cli  = (rc_df.etat == 'Client').sum()
+            pct  = int(n / total * 100)
+            lh   = list_html_for(rc_df)
+            st.markdown(
+                f'<div class="click-row" data-title="{he(rc)} — {n} comptes" data-html="{lh}" onclick="{_OL}">'
+                f'<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
+                f'<span style="font-weight:700;color:{color}">{he(rc)}</span>'
+                f'<span style="font-size:11px;color:#9ca3af">{n} comptes · {en_c} en cours · {cli} clients</span>'
+                f'</div>'
+                f'<div style="background:#e5e7eb;border-radius:4px;height:8px">'
+                f'<div style="width:{pct}%;background:{color};height:8px;border-radius:4px"></div>'
+                f'</div></div>'
+                f'<div style="height:12px"></div>',
+                unsafe_allow_html=True
+            )
 
         st.markdown("**🏭 Top secteurs**")
         top_s = (df.groupby('secteur').size()
@@ -258,50 +457,71 @@ with tab_ov:
                    .sort_values('n', ascending=False)
                    .head(8))
         for _, row in top_s.iterrows():
-            pct = int(row['n']/total*100)
-            st.markdown(f"""
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-              <div style="width:110px;font-size:11px;color:#6b7280;text-align:right;
-                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{row['secteur']}</div>
-              <div style="flex:1;background:#e5e7eb;border-radius:3px;height:6px">
-                <div style="width:{pct}%;background:#1D3461;height:6px;border-radius:3px"></div>
-              </div>
-              <div style="width:18px;font-size:11px;font-weight:700;color:#374151">{row['n']}</div>
-            </div>""", unsafe_allow_html=True)
+            pct   = int(row['n'] / total * 100)
+            sec_df= df[df.secteur == row['secteur']]
+            lh    = list_html_for(sec_df)
+            st.markdown(
+                f'<div class="click-row" data-title="{he(row["secteur"])} — {row["n"]} comptes" data-html="{lh}" onclick="{_OL}">'
+                f'<div style="display:flex;align-items:center;gap:8px">'
+                f'<div style="width:110px;font-size:11px;color:#6b7280;text-align:right;'
+                f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{he(row["secteur"])}</div>'
+                f'<div style="flex:1;background:#e5e7eb;border-radius:3px;height:6px">'
+                f'<div style="width:{pct}%;background:#1D3461;height:6px;border-radius:3px"></div>'
+                f'</div>'
+                f'<div style="width:18px;font-size:11px;font-weight:700;color:#374151">{row["n"]}</div>'
+                f'</div></div>'
+                f'<div style="height:6px"></div>',
+                unsafe_allow_html=True
+            )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_pipe:
-    st.markdown("**🔄 Pipeline de prospection**")
+    st.markdown("**🔄 Pipeline de prospection** — cliquez sur une carte pour le détail")
 
-    # Single st.markdown() for entire board — avoids st.columns+HTML rendering issues
     board_parts = []
     for stage in PIPELINE_STAGES:
         stage_df = df[df.etat == stage].sort_values('nom')
         cfg = ETAT_CFG.get(stage, {"color":"#9CA3AF","bg":"#F9FAFB"})
-        n = len(stage_df)
+        n   = len(stage_df)
 
         cards = []
         for _, acc in stage_df.iterrows():
-            rc_c = RC_COLORS.get(acc.rc, '#9CA3AF')
-            rc_part = (f'<span style="float:right;color:{rc_c};font-weight:700;font-size:11px">{acc.rc}</span>' if acc.rc else '')
-            date_part = (f'<div style="color:#a8c2d8;font-size:10px;margin-top:2px">{acc.date_attaque}</div>' if acc.date_attaque else '')
+            rc_c    = RC_COLORS.get(acc.rc, '#9CA3AF')
+            rc_part = (f'<span style="float:right;color:{rc_c};font-weight:700;font-size:11px">{he(acc.rc)}</span>'
+                       if acc.rc else '')
+            date_part = (f'<div style="color:#a8c2d8;font-size:10px;margin-top:2px">{he(acc.date_attaque)}</div>'
+                         if acc.date_attaque else '')
+            pot_val = str(int(acc.potentiel)) if pd.notna(acc.potentiel) else ""
+            acc_val = str(int(acc.accessibilite)) if pd.notna(acc.accessibilite) else ""
+            ebadge  = he(etat_badge(acc.etat))  # HTML-escaped badge HTML
+
             cards.append(
-                f'<div style="background:white;border:1px solid #e8eef8;border-radius:8px;padding:9px 10px;margin-bottom:5px;font-size:12px">'
-                f'<a href="{acc.url}" target="_blank" style="color:#1D3461;font-weight:600;font-size:11px;text-decoration:none">{acc.nom}</a>'
+                f'<div class="pipe-card"'
+                f' data-nom="{he(acc.nom, quote=True)}"'
+                f' data-rc="{he(acc.rc, quote=True)}"'
+                f' data-sec="{he(acc.secteur, quote=True)}"'
+                f' data-date="{he(acc.date_attaque or "", quote=True)}"'
+                f' data-pot="{pot_val}"'
+                f' data-acc="{acc_val}"'
+                f' data-url="{he(acc.url, quote=True)}"'
+                f' data-ebadge="{ebadge}"'
+                f' onclick="{_OA}">'
                 f'{rc_part}'
-                f'<div style="clear:both;color:#9ca3af;font-size:10px;margin-top:1px">{acc.secteur}</div>'
+                f'<div style="color:#1D3461;font-weight:600;font-size:11px;overflow:hidden;'
+                f'text-overflow:ellipsis;white-space:nowrap">{he(acc.nom)}</div>'
+                f'<div style="clear:both;color:#9ca3af;font-size:10px;margin-top:1px">{he(acc.secteur)}</div>'
                 f'{date_part}'
                 f'</div>'
             )
 
         cards_inner = ''.join(cards) or '<p style="text-align:center;color:#d1d5db;font-size:12px;padding:16px 0">—</p>'
         board_parts.append(
-            f'<div style="flex:0 0 155px;min-width:155px">'
+            f'<div style="flex:0 0 160px;min-width:160px">'
             f'<div style="border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">'
             f'<div style="background:{cfg["bg"]};padding:8px 10px;border-bottom:2px solid {cfg["color"]}">'
-            f'<div style="font-weight:700;font-size:12px;color:{cfg["color"]}">{stage}</div>'
+            f'<div style="font-weight:700;font-size:12px;color:{cfg["color"]}">{he(stage)}</div>'
             f'<div style="font-size:10px;color:#9ca3af">{n} compte{"s" if n!=1 else ""}</div>'
             f'</div>'
             f'<div style="max-height:420px;overflow-y:auto;padding:6px;background:white">'
@@ -319,7 +539,9 @@ with tab_pipe:
         with col:
             with st.expander(f"{stage} ({len(side_df)})", expanded=False):
                 tags = ''.join([
-                    f'<a href="{r.url}" target="_blank" style="display:inline-block;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px;color:#6b7280;text-decoration:none;margin:2px">{r.nom}</a>'
+                    f'<a href="{r.url}" target="_blank" style="display:inline-block;background:#f9fafb;'
+                    f'border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px;'
+                    f'color:#6b7280;text-decoration:none;margin:2px">{he(r.nom)}</a>'
                     for _, r in side_df.iterrows()
                 ])
                 st.markdown(tags or "Aucun compte", unsafe_allow_html=True)
@@ -346,12 +568,12 @@ with tab_plan:
                 pot  = f"Pot.{int(acc.potentiel)}/5" if pd.notna(acc.potentiel) else ""
                 rows_parts.append(
                     f'<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;border-bottom:1px solid #f0f0f0">'
-                    f'<div><a href="{acc.url}" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none">{acc.nom}</a>'
-                    f'<span style="font-size:11px;color:#9ca3af;margin-left:8px">{acc.secteur}</span></div>'
+                    f'<div><a href="{acc.url}" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none">{he(acc.nom)}</a>'
+                    f'<span style="font-size:11px;color:#9ca3af;margin-left:8px">{he(acc.secteur)}</span></div>'
                     f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
                     f'{etat_badge(acc.etat)}'
-                    f'{"<span style='font-size:12px;font-weight:700;color:"+rc_c+"'>"+acc.rc+"</span>" if acc.rc else ""}'
-                    f'{"<span style='font-size:11px;color:#9ca3af'>"+pot+"</span>" if pot else ""}'
+                    f'{"<span style=color:"+rc_c+";font-weight:700;font-size:12px>"+he(acc.rc)+"</span>" if acc.rc else ""}'
+                    f'{"<span style=font-size:11px;color:#9ca3af>"+pot+"</span>" if pot else ""}'
                     f'</div></div>'
                 )
             st.markdown(''.join(rows_parts), unsafe_allow_html=True)
@@ -360,7 +582,9 @@ with tab_plan:
     if not no_date.empty:
         with st.expander(f"Sans date d'attaque ({len(no_date)})", expanded=False):
             tags = ''.join([
-                f'<a href="{r.url}" target="_blank" style="display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px;color:#6b7280;text-decoration:none;margin:2px">{r.nom}</a>'
+                f'<a href="{r.url}" target="_blank" style="display:inline-block;background:#f3f4f6;'
+                f'border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px;font-size:12px;'
+                f'color:#6b7280;text-decoration:none;margin:2px">{he(r.nom)}</a>'
                 for _, r in no_date.iterrows()
             ])
             st.markdown(tags, unsafe_allow_html=True)
@@ -379,7 +603,6 @@ with tab_mat:
     if not mat_df.empty:
         fig = go.Figure()
 
-        # Quadrant backgrounds
         for x0, y0, x1, y1, color in [
             (3, 3, 5.5, 5.5, "rgba(134,239,172,0.15)"),
             (0.5, 3, 3, 5.5, "rgba(253,186,116,0.15)"),
@@ -389,13 +612,11 @@ with tab_mat:
             fig.add_shape(type="rect", x0=x0, y0=y0, x1=x1, y1=y1,
                           fillcolor=color, line_width=0, layer="below")
 
-        # Dividers
         fig.add_shape(type="line", x0=3, y0=0.5, x1=3, y1=5.5,
                       line=dict(color="#d1d5db", width=1.5, dash="dash"))
         fig.add_shape(type="line", x0=0.5, y0=3, x1=5.5, y1=3,
                       line=dict(color="#d1d5db", width=1.5, dash="dash"))
 
-        # Quadrant labels
         for text, x, y, color in [
             ("<b>⭐ Priorité 1</b>", 4.2, 5.25, "#059669"),
             ("<b>🎯 Priorité 2</b>", 1.5, 5.25, "#EA580C"),
@@ -406,7 +627,6 @@ with tab_mat:
                                font=dict(size=11, color=color),
                                bgcolor="rgba(255,255,255,0.75)", borderpad=3)
 
-        # Points by RC
         for rc, color in RC_COLORS.items():
             rdf = mat_df[mat_df.rc == rc]
             if rdf.empty:
@@ -451,7 +671,6 @@ with tab_mat:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    # 4 quadrant lists
     st.markdown("---")
     p1 = mat_df[(mat_df.potentiel>=3)&(mat_df.accessibilite>=3)].sort_values(['potentiel','accessibilite'],ascending=False)
     p2 = mat_df[(mat_df.potentiel>=3)&(mat_df.accessibilite<3)].sort_values('potentiel',ascending=False)
@@ -465,11 +684,11 @@ with tab_mat:
             item_parts.append(
                 f'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-bottom:1px solid #f5f5f5;font-size:13px">'
                 f'<div style="flex:1;min-width:0">'
-                f'<a href="{acc.url}" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">{acc.nom}</a>'
-                f'<span style="font-size:11px;color:#9ca3af">{acc.secteur}</span>'
+                f'<a href="{acc.url}" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">{he(acc.nom)}</a>'
+                f'<span style="font-size:11px;color:#9ca3af">{he(acc.secteur)}</span>'
                 f'</div>'
                 f'<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:8px">'
-                f'{"<span style='color:"+rc_c+";font-weight:700;font-size:12px'>"+acc.rc+"</span>" if acc.rc else ""}'
+                f'{"<span style=color:"+rc_c+";font-weight:700;font-size:12px>"+he(acc.rc)+"</span>" if acc.rc else ""}'
                 f'<span style="font-size:11px;color:#9ca3af">{int(acc.potentiel)}/{int(acc.accessibilite)}</span>'
                 f'{etat_badge(acc.etat)}'
                 f'</div></div>'
@@ -479,7 +698,6 @@ with tab_mat:
             items += f'<div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px">+ {len(qdf)-limit} autres</div>'
         if not items:
             items = '<div style="text-align:center;font-size:12px;color:#d1d5db;padding:12px">Aucun compte</div>'
-
         return (
             f'<div style="border-left:4px solid {border};padding-left:12px;margin-bottom:8px">'
             f'<span style="font-weight:700;color:{color}">{label}</span>'
@@ -495,7 +713,6 @@ with tab_mat:
         st.markdown(quadrant_list(p1,"⭐ Priorité 1 — Pot ≥ 3 & Acc ≥ 3","#059669","#86EFAC"), unsafe_allow_html=True)
     with q2:
         st.markdown(quadrant_list(p2,"🎯 Priorité 2 — Potentiel fort, accès difficile","#EA580C","#FED7AA"), unsafe_allow_html=True)
-
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
     q3, q4 = st.columns(2)
     with q3:
@@ -515,9 +732,9 @@ with tab_all:
     st.markdown(f"**📋 Tous les comptes ({len(df)})**")
 
     col_s, col_rc, col_et = st.columns([3,1,2])
-    search     = col_s.text_input("Rechercher", placeholder="🔍 Nom ou secteur...", label_visibility="collapsed")
-    rc_filter  = col_rc.selectbox("RC", ["Tous"] + sorted(df.rc[df.rc!=''].unique().tolist()), label_visibility="collapsed")
-    et_filter  = col_et.selectbox("État", ["Tous les états"] + PIPELINE_STAGES + SIDE_STAGES, label_visibility="collapsed")
+    search    = col_s.text_input("Rechercher", placeholder="🔍 Nom ou secteur...", label_visibility="collapsed")
+    rc_filter = col_rc.selectbox("RC", ["Tous"] + sorted(df.rc[df.rc!=''].unique().tolist()), label_visibility="collapsed")
+    et_filter = col_et.selectbox("État", ["Tous les états"] + PIPELINE_STAGES + SIDE_STAGES, label_visibility="collapsed")
 
     filt = df.copy()
     if search:
@@ -532,8 +749,8 @@ with tab_all:
 
     display = filt[["nom","secteur","rc","etat","typologie","date_attaque","potentiel","accessibilite","url"]].copy()
     display.columns = ["Compte","Secteur","RC","État","Typologie","Date d'attaque","Potentiel","Accessibilité","↗ Notion"]
-    display["Potentiel"]    = pd.to_numeric(display["Potentiel"],    errors='coerce')
-    display["Accessibilité"]= pd.to_numeric(display["Accessibilité"], errors='coerce')
+    display["Potentiel"]     = pd.to_numeric(display["Potentiel"],     errors='coerce')
+    display["Accessibilité"] = pd.to_numeric(display["Accessibilité"], errors='coerce')
 
     st.dataframe(
         display,
