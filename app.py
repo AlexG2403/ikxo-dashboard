@@ -37,28 +37,33 @@ st.markdown("""
 .stTabs [role="tablist"] {
     background:#1D3461 !important;
     border-radius:10px 10px 0 0;
-    padding:0 12px;
-    gap:0;
+    padding:4px 8px 0 8px !important;
+    gap:4px !important;
+    display:flex !important;
+    flex-direction:row !important;
+    align-items:flex-end !important;
 }
 .stTabs [data-baseweb="tab"],
 .stTabs button[role="tab"] {
-    background:transparent !important;
-    color:rgba(255,255,255,.7) !important;
-    border-radius:8px 8px 0 0;
-    padding:13px 26px;
-    font-size:15px;
-    font-weight:600;
+    background:rgba(255,255,255,.08) !important;
+    color:rgba(255,255,255,.8) !important;
+    border-radius:8px 8px 0 0 !important;
+    padding:9px 16px !important;
+    font-size:13px !important;
+    font-weight:600 !important;
     border:none !important;
     border-bottom:3px solid transparent !important;
-    transition:all .15s;
-    letter-spacing:.01em;
+    transition:all .15s !important;
+    white-space:nowrap !important;
+    min-width:fit-content !important;
+    flex-shrink:0 !important;
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"],
 .stTabs button[role="tab"][aria-selected="true"] {
-    background:rgba(255,255,255,.18) !important;
-    color:#ffffff !important;
+    background:white !important;
+    color:#1D3461 !important;
     font-weight:800 !important;
-    border-bottom:3px solid #ffffff !important;
+    border-bottom:3px solid white !important;
 }
 .stTabs [data-baseweb="tab-panel"],
 .stTabs [role="tabpanel"] {
@@ -157,8 +162,10 @@ _OPEN_MODAL_JS = (
     "document.getElementById('m-url').href=el.dataset.url||'#';"
     "document.getElementById('m-badge').innerHTML='<span class=\"badge\" style=\"background:'+cfg.bg+';color:'+cfg.color+'\">'+(el.dataset.etat||'')+'</span>';"
     "document.getElementById('acc-modal').style.display='flex';}"
-    "function closeModal(){document.getElementById('acc-modal').style.display='none';}"
-    "function closeListModal(){document.getElementById('list-modal').style.display='none';}"
+    "function closeModal(){document.getElementById('acc-modal').style.display='none';_shrinkFrame();}"
+    "function closeListModal(){document.getElementById('list-modal').style.display='none';_shrinkFrame();}"
+    "function _expandFrame(){try{var f=window.frameElement;if(f){f._sh=f.style.height;f.style.height='620px';}}catch(e){}}"
+    "function _shrinkFrame(){try{var f=window.frameElement;if(f&&f._sh!==undefined){f.style.height=f._sh;}}catch(e){}}"
 )
 
 def component_wrap(body_html, extra_css="", extra_js=""):
@@ -284,7 +291,12 @@ def build_accounts_js(source_df):
         "clients:ALL.filter(function(a){return a.etat==='Client';}),"
         "};"
         "function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}"
+        "function _expandFrame(){"
+        "try{var f=window.frameElement;if(f){f._sh=f.style.height;f.style.height='620px';}}catch(e){}}"
+        "function _shrinkFrame(){"
+        "try{var f=window.frameElement;if(f&&f._sh!==undefined){f.style.height=f._sh;}}catch(e){}}"
         "function openListModal(group,title){"
+        "_expandFrame();"
         "var accs=G[group]||[];"
         "var h=accs.map(function(a){"
         "var cfg=EC[a.etat]||{color:'#6B7280',bg:'#F3F4F6'};"
@@ -309,6 +321,9 @@ def build_accounts_js(source_df):
         "document.getElementById('lm-body').innerHTML=h;"
         "document.getElementById('lm-title').textContent=title;"
         "document.getElementById('list-modal').style.display='flex';}"
+        "function closeListModal(){"
+        "document.getElementById('list-modal').style.display='none';"
+        "_shrinkFrame();}"
     )
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
