@@ -36,33 +36,34 @@ st.markdown("""
 .stTabs [data-baseweb="tab-list"],
 .stTabs [role="tablist"] {
     background:#f0f4f8 !important;
-    border-radius:10px 10px 0 0;
-    padding:4px 8px 0 8px !important;
-    gap:4px !important;
+    border-radius:8px 8px 0 0 !important;
+    padding:0 !important;
+    gap:0 !important;
     display:flex !important;
     flex-direction:row !important;
-    align-items:flex-end !important;
+    align-items:stretch !important;
     border-bottom:2px solid #1D3461 !important;
 }
 .stTabs [data-baseweb="tab"],
 .stTabs button[role="tab"] {
     background:transparent !important;
-    color:#4B5563 !important;
+    color:#374151 !important;
     border-radius:0 !important;
-    padding:10px 24px !important;
+    padding:12px 28px !important;
     font-size:14px !important;
     font-weight:700 !important;
     border:none !important;
-    border-right:1px solid #cbd5e1 !important;
     border-bottom:3px solid transparent !important;
-    transition:all .15s !important;
+    box-shadow:1px 0 0 0 #cbd5e1 !important;
+    transition:color .15s,border-color .15s !important;
     white-space:nowrap !important;
     min-width:fit-content !important;
     flex-shrink:0 !important;
+    letter-spacing:0.01em !important;
 }
 .stTabs [data-baseweb="tab"]:last-child,
 .stTabs button[role="tab"]:last-child {
-    border-right:none !important;
+    box-shadow:none !important;
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"],
 .stTabs button[role="tab"][aria-selected="true"] {
@@ -70,6 +71,11 @@ st.markdown("""
     color:#1D3461 !important;
     font-weight:800 !important;
     border-bottom:3px solid #1D3461 !important;
+    box-shadow:1px 0 0 0 #cbd5e1 !important;
+}
+.stTabs [data-baseweb="tab-panel"],
+.stTabs [role="tabpanel"] {
+    border-radius:0 0 8px 8px !important;
 }
 .stTabs [data-baseweb="tab-panel"],
 .stTabs [role="tabpanel"] {
@@ -379,6 +385,42 @@ st.caption("**" + str(len(df)) + " comptes** chargés · " + pd.Timestamp.now().
 tab_ov, tab_pipe, tab_plan, tab_mat, tab_all = st.tabs([
     "Vue générale", "Pipeline", "Planning", "Matrice", "Tous les comptes"
 ])
+
+# Injecte un <style> dans le <head> parent APRÈS emotion — seule méthode qui gagne en cascade
+components.html("""<script>
+(function(){
+  var CSS = [
+    '[role="tablist"]{background:#f0f4f8!important;border-bottom:2px solid #1D3461!important;padding:0!important;gap:0!important;display:flex!important;}',
+    '[role="tab"]{padding:12px 28px!important;font-size:14px!important;font-weight:700!important;letter-spacing:0.02em!important;border:none!important;border-bottom:3px solid transparent!important;box-shadow:1px 0 0 0 #cbd5e1!important;background:transparent!important;color:#374151!important;white-space:nowrap!important;cursor:pointer!important;}',
+    '[role="tab"]:last-child{box-shadow:none!important;}',
+    '[role="tab"][aria-selected="true"]{color:#1D3461!important;font-weight:800!important;background:white!important;border-bottom:3px solid #1D3461!important;box-shadow:1px 0 0 0 #cbd5e1!important;}',
+    '[role="tabpanel"]{background:white!important;border-radius:0 0 8px 8px!important;}'
+  ].join('');
+
+  function inject(){
+    try{
+      var doc=window.parent.document;
+      var el=doc.getElementById('ikxo-tabs');
+      if(el) el.remove();
+      var s=doc.createElement('style');
+      s.id='ikxo-tabs';
+      s.textContent=CSS;
+      doc.head.appendChild(s);
+    }catch(e){}
+  }
+
+  // Injecte après les délais pour passer après emotion
+  [0,300,800,1500].forEach(function(t){setTimeout(inject,t);});
+
+  // Ré-injecte dès que emotion modifie le <head>
+  try{
+    new MutationObserver(inject).observe(
+      window.parent.document.head,
+      {childList:true,subtree:true}
+    );
+  }catch(e){}
+})();
+</script>""", height=0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
