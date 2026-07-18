@@ -48,16 +48,21 @@ st.markdown("""
 .stTabs button[role="tab"] {
     background:transparent !important;
     color:#4B5563 !important;
-    border-radius:8px 8px 0 0 !important;
-    padding:9px 18px !important;
+    border-radius:0 !important;
+    padding:10px 24px !important;
     font-size:14px !important;
-    font-weight:600 !important;
+    font-weight:700 !important;
     border:none !important;
+    border-right:1px solid #cbd5e1 !important;
     border-bottom:3px solid transparent !important;
     transition:all .15s !important;
     white-space:nowrap !important;
     min-width:fit-content !important;
     flex-shrink:0 !important;
+}
+.stTabs [data-baseweb="tab"]:last-child,
+.stTabs button[role="tab"]:last-child {
+    border-right:none !important;
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"],
 .stTabs button[role="tab"][aria-selected="true"] {
