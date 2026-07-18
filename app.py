@@ -66,6 +66,12 @@ st.markdown("""
     border-bottom:3px solid #ffffff !important;
     text-shadow:0 0 12px rgba(255,255,255,.4) !important;
 }
+.stTabs [data-baseweb="tab"] *,
+.stTabs button[role="tab"] * {
+    color:inherit !important;
+    font-size:inherit !important;
+    font-weight:inherit !important;
+}
 .stTabs [data-baseweb="tab-panel"],
 .stTabs [role="tabpanel"] {
     background:white;
@@ -305,10 +311,7 @@ def build_accounts_js(source_df):
         "f.style.height=f._sh;f.style.position='';f.style.top='';"
         "f.style.left='';f.style.width='';f.style.zIndex='';}"
         "}catch(e){}}"
-        "function openListModal(group,title){"
-        "_expandFrame();"
-        "var accs=G[group]||[];"
-        "var h=accs.map(function(a){"
+        "function _buildListItem(a){"
         "var cfg=EC[a.etat]||{color:'#6B7280',bg:'#F3F4F6'};"
         "var rc_c=RCC[a.rc]||'#9CA3AF';"
         "return '<div class=\"list-item\"'"
@@ -326,11 +329,15 @@ def build_accounts_js(source_df):
         "+'<div style=\"display:flex;gap:6px;align-items:center;margin-top:3px\">'"
         "+(a.rc?'<span style=\"color:'+rc_c+';font-weight:700;font-size:11px\">'+esc(a.rc)+'</span>':'')"
         "+'<span style=\"background:'+cfg.bg+';color:'+cfg.color+';padding:1px 7px;border-radius:9999px;font-size:11px;font-weight:600\">'+esc(a.etat)+'</span>'"
-        "+'</div></div>';"
-        "}).join('');"
-        "document.getElementById('lm-body').innerHTML=h;"
+        "+'</div></div>';}"
+        "function _showList(accs,title){"
+        "_expandFrame();"
+        "document.getElementById('lm-body').innerHTML=accs.map(_buildListItem).join('');"
         "document.getElementById('lm-title').textContent=title;"
         "document.getElementById('list-modal').style.display='flex';}"
+        "function openListModal(group,title){_showList(G[group]||[],title);}"
+        "function openListByFilter(field,value,title){"
+        "_showList(ALL.filter(function(a){return a[field]===value;}),title);}"
         "function closeListModal(){"
         "document.getElementById('list-modal').style.display='none';"
         "_shrinkFrame();}"
@@ -385,7 +392,73 @@ with tab_ov:
 
     accs_js = build_accounts_js(df)
 
-    mc_css = (
+    def js_str(s):
+        return str(s).replace("\\", "\\\\").replace("'", "\\'")
+
+    # ── Metric cards ────────────────────────────────────────────────
+    metrics_html = (
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:4px 2px;margin-bottom:22px">'
+        '<div class="mc" onclick="openListModal(\'total\',\'Tous les comptes (' + str(total) + ')\')">'
+        '<div class="mc-label">Total comptes</div><div class="mc-val">' + str(total) + '</div></div>'
+        '<div class="mc" onclick="openListModal(\'strat\',\'Comptes Strat\\u00e9giques (' + str(strat) + ')\')">'
+        '<div class="mc-label">Strat&#233;giques</div><div class="mc-val">' + str(strat) + '</div></div>'
+        '<div class="mc" onclick="openListModal(\'closing\',\'En closing (' + str(en_cours) + ')\')">'
+        '<div class="mc-label">En closing</div><div class="mc-val">' + str(en_cours) + '</div></div>'
+        '<div class="mc" onclick="openListModal(\'clients\',\'Clients (' + str(clients) + ')\')">'
+        '<div class="mc-label">Clients</div><div class="mc-val">' + str(clients) + '</div></div>'
+        '</div>'
+    )
+
+    # ── Étape bars ──────────────────────────────────────────────────
+    all_stages = PIPELINE_STAGES + SIDE_STAGES
+    counts_s   = {s: int((df.etat == s).sum()) for s in all_stages}
+    max_s      = max(counts_s.values(), default=1)
+    stage_bars = ''
+    for s in all_stages:
+        n   = counts_s[s]
+        pct = int(n / max_s * 100) if max_s else 0
+        cfg = ETAT_CFG.get(s, {"color":"#9CA3AF"})
+        stage_bars += (
+            '<div class="bar-row" onclick="openListByFilter(\'etat\',\'' + js_str(s) + '\',\'' + js_str(s) + ' (' + str(n) + ' comptes)\')">'
+            '<div class="bar-label">' + he(s) + '</div>'
+            '<div class="bar-track"><div class="bar-fill" style="width:' + str(pct) + '%;background:' + cfg["color"] + '"></div></div>'
+            '<div class="bar-count">' + str(n) + '</div>'
+            '</div>'
+        )
+
+    # ── RC bars ─────────────────────────────────────────────────────
+    rc_bars = ''
+    for rc, color in RC_COLORS.items():
+        rc_df = df[df.rc == rc]
+        if rc_df.empty:
+            continue
+        n   = len(rc_df)
+        pct = int(n / total * 100) if total else 0
+        rc_bars += (
+            '<div class="bar-row" onclick="openListByFilter(\'rc\',\'' + js_str(rc) + '\',\'' + js_str(rc) + ' (' + str(n) + ' comptes)\')">'
+            '<div class="bar-label" style="color:' + color + ';font-weight:700">' + he(rc) + '</div>'
+            '<div class="bar-track"><div class="bar-fill" style="width:' + str(pct) + '%;background:' + color + '"></div></div>'
+            '<div class="bar-count">' + str(n) + '</div>'
+            '</div>'
+        )
+
+    # ── Secteur bars ─────────────────────────────────────────────────
+    top_s   = (df.groupby('secteur').size().reset_index(name='n')
+                 .sort_values('n', ascending=False).head(8))
+    max_sec = int(top_s['n'].max()) if not top_s.empty else 1
+    sec_bars = ''
+    for _, row in top_s.iterrows():
+        n   = int(row['n'])
+        pct = int(n / max_sec * 100) if max_sec else 0
+        sec_bars += (
+            '<div class="bar-row" onclick="openListByFilter(\'secteur\',\'' + js_str(row['secteur']) + '\',\'' + js_str(row['secteur']) + ' (' + str(n) + ' comptes)\')">'
+            '<div class="bar-label">' + he(row['secteur']) + '</div>'
+            '<div class="bar-track"><div class="bar-fill" style="width:' + str(pct) + '%;background:#1D3461"></div></div>'
+            '<div class="bar-count">' + str(n) + '</div>'
+            '</div>'
+        )
+
+    ov_css = (
         ".mc{background:white;border:1px solid #e5e7eb;border-radius:12px;"
         "padding:18px 12px;text-align:center;cursor:pointer;"
         "transition:transform .12s,box-shadow .12s,border-color .12s;"
@@ -394,84 +467,32 @@ with tab_ov:
         ".mc:active{transform:translateY(0);}"
         ".mc-label{font-size:12px;color:#6b7280;margin-bottom:6px;font-weight:500;}"
         ".mc-val{font-size:34px;font-weight:800;color:#1D3461;line-height:1;}"
+        ".sec-title{font-size:12px;font-weight:700;color:#374151;margin:0 0 10px;text-transform:uppercase;letter-spacing:.5px}"
+        ".cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}"
+        ".bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;"
+        "cursor:pointer;border-radius:6px;padding:3px 4px;"
+        "transition:background .12s;}"
+        ".bar-row:hover{background:#f0f4f8;}"
+        ".bar-label{width:120px;font-size:11px;color:#6b7280;text-align:right;"
+        "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}"
+        ".bar-track{flex:1;background:#e5e7eb;border-radius:3px;height:7px}"
+        ".bar-fill{height:7px;border-radius:3px}"
+        ".bar-count{width:22px;font-size:11px;font-weight:700;color:#374151;text-align:right;flex-shrink:0}"
+        ".sub-col{margin-bottom:18px}"
     )
 
-    metrics_html = (
-        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:4px 2px">'
-        '<div class="mc" onclick="openListModal(\'total\',\'Tous les comptes (' + str(total) + ')\')">'
-        '<div class="mc-label">Total comptes</div><div class="mc-val">' + str(total) + '</div></div>'
-        '<div class="mc" onclick="openListModal(\'strat\',\'Comptes Stratégiques (' + str(strat) + ')\')">'
-        '<div class="mc-label">Stratégiques</div><div class="mc-val">' + str(strat) + '</div></div>'
-        '<div class="mc" onclick="openListModal(\'closing\',\'En closing (' + str(en_cours) + ')\')">'
-        '<div class="mc-label">En closing</div><div class="mc-val">' + str(en_cours) + '</div></div>'
-        '<div class="mc" onclick="openListModal(\'clients\',\'Clients (' + str(clients) + ')\')">'
-        '<div class="mc-label">Clients</div><div class="mc-val">' + str(clients) + '</div></div>'
-        '</div>'
+    ov_body = (
+        metrics_html
+        + '<div class="cols">'
+        + '<div><p class="sec-title">R&#233;partition par &#233;tape</p>' + stage_bars + '</div>'
+        + '<div>'
+        + '<div class="sub-col"><p class="sec-title">Responsables commerciaux</p>' + rc_bars + '</div>'
+        + '<div class="sub-col"><p class="sec-title">Top secteurs</p>' + sec_bars + '</div>'
+        + '</div>'
+        + '</div>'
     )
 
-    components.html(component_wrap_dual(metrics_html, mc_css, accs_js), height=130)
-
-    st.markdown("---")
-    col_l, col_r = st.columns(2)
-
-    with col_l:
-        st.markdown("**Répartition par étape**")
-        stage_data = [
-            {"Étape": s, "n": int((df.etat == s).sum()),
-             "color": ETAT_CFG.get(s, {}).get("color","#9CA3AF")}
-            for s in PIPELINE_STAGES + SIDE_STAGES
-        ]
-        sdf = pd.DataFrame(stage_data)
-        fig_s = go.Figure(go.Bar(
-            x=sdf["n"], y=sdf["Étape"], orientation='h',
-            marker_color=sdf["color"], text=sdf["n"], textposition='outside',
-        ))
-        fig_s.update_layout(
-            margin=dict(l=0,r=40,t=10,b=10), height=310,
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False,showticklabels=False),
-            yaxis=dict(autorange="reversed"),
-        )
-        st.plotly_chart(fig_s, use_container_width=True)
-
-    with col_r:
-        st.markdown("**Par responsable commercial**")
-        for rc, color in RC_COLORS.items():
-            rc_df = df[df.rc == rc]
-            if rc_df.empty:
-                continue
-            n    = len(rc_df)
-            en_c = int(rc_df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance']).sum())
-            cli  = int((rc_df.etat == 'Client').sum())
-            pct  = int(n / total * 100)
-            st.markdown(
-                '<div style="margin-bottom:12px">'
-                '<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
-                '<span style="font-weight:700;color:' + color + '">' + he(rc) + '</span>'
-                '<span style="font-size:11px;color:#9ca3af">' + str(n) + ' comptes · ' + str(en_c) + ' en cours · ' + str(cli) + ' clients</span>'
-                '</div>'
-                '<div style="background:#e5e7eb;border-radius:4px;height:8px">'
-                '<div style="width:' + str(pct) + '%;background:' + color + ';height:8px;border-radius:4px"></div>'
-                '</div></div>',
-                unsafe_allow_html=True
-            )
-
-        st.markdown("**Top secteurs**")
-        top_s = (df.groupby('secteur').size().reset_index(name='n')
-                   .sort_values('n', ascending=False).head(8))
-        for _, row in top_s.iterrows():
-            pct = int(row['n'] / total * 100)
-            st.markdown(
-                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
-                '<div style="width:110px;font-size:11px;color:#6b7280;text-align:right;'
-                'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + he(row["secteur"]) + '</div>'
-                '<div style="flex:1;background:#e5e7eb;border-radius:3px;height:6px">'
-                '<div style="width:' + str(pct) + '%;background:#1D3461;height:6px;border-radius:3px"></div>'
-                '</div>'
-                '<div style="width:18px;font-size:11px;font-weight:700;color:#374151">' + str(row['n']) + '</div>'
-                '</div>',
-                unsafe_allow_html=True
-            )
+    components.html(component_wrap_dual(ov_body, ov_css, accs_js), height=740)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — PIPELINE
