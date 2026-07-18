@@ -7,7 +7,7 @@ import json as _json
 import re
 from html import escape as he
 
-st.set_page_config(page_title="IKXO — Suivi Comptes Stratégiques", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="IKXO — Suivi Comptes Stratégiques", layout="wide", initial_sidebar_state="expanded")
 
 DATABASE_ID = "38aa848e427480b5bf7dc905f72ada04"
 PIPELINE_STAGES = ['A qualifier','Prospection lancée','1 rdv','Plusieurs rdv','Besoin','Soutenance','Client']
@@ -31,59 +31,41 @@ st.markdown("""
 <style>
 [data-testid="stAppViewContainer"] { background:#f0f4f8; }
 [data-testid="stHeader"] { background:transparent; }
-.block-container { padding-top:1rem !important; }
+.block-container { padding-top:1.5rem !important; padding-left:2rem !important; padding-right:2rem !important; }
 
-.stTabs [data-baseweb="tab-list"],
-.stTabs [role="tablist"] {
-    background:#f0f4f8 !important;
-    border-radius:8px 8px 0 0 !important;
-    padding:0 !important;
-    gap:0 !important;
-    display:flex !important;
-    flex-direction:row !important;
-    align-items:stretch !important;
-    border-bottom:2px solid #1D3461 !important;
-}
-.stTabs [data-baseweb="tab"],
-.stTabs button[role="tab"] {
-    background:transparent !important;
-    color:#374151 !important;
-    border-radius:0 !important;
-    padding:12px 28px !important;
+/* ── Sidebar ── */
+[data-testid="stSidebar"] { background:#1D3461 !important; }
+[data-testid="stSidebar"] > div:first-child { background:#1D3461 !important; }
+[data-testid="stSidebar"] * { color:rgba(255,255,255,0.85) !important; }
+[data-testid="stSidebar"] hr { border-color:rgba(255,255,255,0.15) !important; }
+
+/* Nav radio items */
+[data-testid="stSidebar"] .stRadio > div { gap:2px !important; }
+[data-testid="stSidebar"] .stRadio label {
+    padding:10px 14px !important;
+    border-radius:8px !important;
     font-size:14px !important;
-    font-weight:700 !important;
-    border:none !important;
-    border-bottom:3px solid transparent !important;
-    box-shadow:1px 0 0 0 #cbd5e1 !important;
-    transition:color .15s,border-color .15s !important;
-    white-space:nowrap !important;
-    min-width:fit-content !important;
-    flex-shrink:0 !important;
-    letter-spacing:0.01em !important;
+    font-weight:600 !important;
+    cursor:pointer !important;
+    transition:background .15s !important;
+    display:flex !important;
+    align-items:center !important;
 }
-.stTabs [data-baseweb="tab"]:last-child,
-.stTabs button[role="tab"]:last-child {
-    box-shadow:none !important;
+[data-testid="stSidebar"] .stRadio label:hover { background:rgba(255,255,255,0.1) !important; }
+[data-testid="stSidebar"] .stRadio label[data-baseweb="radio"] { background:rgba(255,255,255,0.15) !important; }
+
+/* Rafraichir button */
+[data-testid="stSidebar"] .stButton button {
+    background:rgba(255,255,255,0.12) !important;
+    color:white !important;
+    border:1px solid rgba(255,255,255,0.25) !important;
+    border-radius:8px !important;
+    font-weight:600 !important;
 }
-.stTabs [data-baseweb="tab"][aria-selected="true"],
-.stTabs button[role="tab"][aria-selected="true"] {
-    background:white !important;
-    color:#1D3461 !important;
-    font-weight:800 !important;
-    border-bottom:3px solid #1D3461 !important;
-    box-shadow:1px 0 0 0 #cbd5e1 !important;
+[data-testid="stSidebar"] .stButton button:hover {
+    background:rgba(255,255,255,0.2) !important;
 }
-.stTabs [data-baseweb="tab-panel"],
-.stTabs [role="tabpanel"] {
-    border-radius:0 0 8px 8px !important;
-}
-.stTabs [data-baseweb="tab-panel"],
-.stTabs [role="tabpanel"] {
-    background:white;
-    border-radius:0 0 10px 10px;
-    padding:20px;
-    box-shadow:0 2px 10px rgba(0,0,0,.06);
-}
+
 .badge { display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;white-space:nowrap; }
 div[data-testid="stExpander"] { border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:8px; }
 </style>
@@ -348,25 +330,28 @@ def build_accounts_js(source_df):
         "_shrinkFrame();}"
     )
 
-# ── HEADER ────────────────────────────────────────────────────────────────────
-h1, h2, h3 = st.columns([2, 6, 1])
-with h1:
+# ── SIDEBAR ───────────────────────────────────────────────────────────────────
+with st.sidebar:
     st.markdown(
-        '<div style="font-size:30px;font-weight:900;letter-spacing:-1px;'
-        'font-family:Inter,system-ui,sans-serif;padding-top:8px">'
-        '<span style="color:#1D3461">I</span>'
+        '<div style="font-size:32px;font-weight:900;letter-spacing:-1px;'
+        'font-family:Inter,system-ui,sans-serif;padding:12px 0 4px">'
+        '<span style="color:#fff">I</span>'
         '<span style="color:#6BA58A">K</span>'
-        '<span style="color:#1D3461">XO</span>'
-        '</div>',
+        '<span style="color:#fff">XO</span>'
+        '</div>'
+        '<div style="color:rgba(255,255,255,0.5);font-size:11px;'
+        'text-transform:uppercase;letter-spacing:1px;margin-bottom:20px">'
+        'Suivi Comptes</div>',
         unsafe_allow_html=True
     )
-with h2:
-    st.markdown("## Suivi Comptes Stratégiques")
-with h3:
-    st.markdown("<div style='padding-top:18px'>", unsafe_allow_html=True)
-    if st.button("Rafraîchir"):
-        st.cache_data.clear()
-        st.rerun()
+    page = st.radio("Navigation", [
+        "Vue générale",
+        "Pipeline",
+        "Planning",
+        "Matrice",
+        "Tous les comptes",
+    ], label_visibility="collapsed")
+    st.markdown("---")
 
 # ── LOAD DATA ─────────────────────────────────────────────────────────────────
 try:
@@ -379,54 +364,24 @@ if df.empty:
     st.warning("Aucun compte chargé.")
     st.stop()
 
-st.caption("**" + str(len(df)) + " comptes** chargés · " + pd.Timestamp.now().strftime('%H:%M'))
+with st.sidebar:
+    st.caption("**" + str(len(df)) + " comptes** · " + pd.Timestamp.now().strftime('%H:%M'))
+    if st.button("Rafraîchir", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
 
-# ── TABS (no emojis, bigger font) ─────────────────────────────────────────────
-tab_ov, tab_pipe, tab_plan, tab_mat, tab_all = st.tabs([
-    "Vue générale", "Pipeline", "Planning", "Matrice", "Tous les comptes"
-])
-
-# Injecte un <style> dans le <head> parent APRÈS emotion — seule méthode qui gagne en cascade
-components.html("""<script>
-(function(){
-  var CSS = [
-    '[role="tablist"]{background:#f0f4f8!important;border-bottom:2px solid #1D3461!important;padding:0!important;gap:0!important;display:flex!important;}',
-    '[role="tab"]{padding:12px 28px!important;font-size:14px!important;font-weight:700!important;letter-spacing:0.02em!important;border:none!important;border-bottom:3px solid transparent!important;box-shadow:1px 0 0 0 #cbd5e1!important;background:transparent!important;color:#374151!important;white-space:nowrap!important;cursor:pointer!important;}',
-    '[role="tab"]:last-child{box-shadow:none!important;}',
-    '[role="tab"][aria-selected="true"]{color:#1D3461!important;font-weight:800!important;background:white!important;border-bottom:3px solid #1D3461!important;box-shadow:1px 0 0 0 #cbd5e1!important;}',
-    '[role="tabpanel"]{background:white!important;border-radius:0 0 8px 8px!important;}'
-  ].join('');
-
-  function inject(){
-    try{
-      var doc=window.parent.document;
-      var el=doc.getElementById('ikxo-tabs');
-      if(el) el.remove();
-      var s=doc.createElement('style');
-      s.id='ikxo-tabs';
-      s.textContent=CSS;
-      doc.head.appendChild(s);
-    }catch(e){}
-  }
-
-  // Injecte après les délais pour passer après emotion
-  [0,300,800,1500].forEach(function(t){setTimeout(inject,t);});
-
-  // Ré-injecte dès que emotion modifie le <head>
-  try{
-    new MutationObserver(inject).observe(
-      window.parent.document.head,
-      {childList:true,subtree:true}
-    );
-  }catch(e){}
-})();
-</script>""", height=0)
+# ── TITRE PAGE ────────────────────────────────────────────────────────────────
+st.markdown(
+    '<h2 style="margin:0 0 16px;color:#1D3461;font-size:22px;font-weight:800">'
+    + page + '</h2>',
+    unsafe_allow_html=True
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — VUE GÉNÉRALE
+# PAGE 1 — VUE GÉNÉRALE
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab_ov:
+if page == "Vue générale":
     total    = len(df)
     clients  = int((df.etat == 'Client').sum())
     en_cours = int(df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance']).sum())
@@ -539,7 +494,7 @@ with tab_ov:
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab_pipe:
+elif page == "Pipeline":
     st.markdown("**Pipeline** — cliquez sur une carte pour le détail")
 
     board_parts = []
@@ -591,7 +546,7 @@ with tab_pipe:
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — PLANNING
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab_plan:
+elif page == "Planning":
     st.markdown("**Planning d'attaque** — cliquez sur une ligne pour le détail")
 
     for month in MONTHS:
@@ -633,7 +588,7 @@ with tab_plan:
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — MATRICE
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab_mat:
+elif page == "Matrice":
     mat_df   = df.dropna(subset=['potentiel','accessibilite']).copy()
     no_score = df[df.potentiel.isna() | df.accessibilite.isna()]
 
@@ -723,7 +678,7 @@ with tab_mat:
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 5 — TOUS LES COMPTES (clickable names → popup)
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab_all:
+elif page == "Tous les comptes":
     st.markdown("**Tous les comptes (" + str(len(df)) + ")** — cliquez sur un nom pour le détail")
 
     col_s, col_rc, col_et = st.columns([3,1,2])
