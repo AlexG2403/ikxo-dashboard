@@ -45,8 +45,8 @@ st.markdown("""
 }
 .stTabs [data-baseweb="tab"],
 .stTabs button[role="tab"] {
-    background:rgba(255,255,255,.08) !important;
-    color:rgba(255,255,255,.8) !important;
+    background:transparent !important;
+    color:rgba(255,255,255,.75) !important;
     border-radius:8px 8px 0 0 !important;
     padding:9px 16px !important;
     font-size:13px !important;
@@ -60,10 +60,11 @@ st.markdown("""
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"],
 .stTabs button[role="tab"][aria-selected="true"] {
-    background:white !important;
-    color:#1D3461 !important;
+    background:rgba(255,255,255,.22) !important;
+    color:#ffffff !important;
     font-weight:800 !important;
-    border-bottom:3px solid white !important;
+    border-bottom:3px solid #ffffff !important;
+    text-shadow:0 0 12px rgba(255,255,255,.4) !important;
 }
 .stTabs [data-baseweb="tab-panel"],
 .stTabs [role="tabpanel"] {
@@ -164,8 +165,8 @@ _OPEN_MODAL_JS = (
     "document.getElementById('acc-modal').style.display='flex';}"
     "function closeModal(){document.getElementById('acc-modal').style.display='none';_shrinkFrame();}"
     "function closeListModal(){document.getElementById('list-modal').style.display='none';_shrinkFrame();}"
-    "function _expandFrame(){try{var f=window.frameElement;if(f){f._sh=f.style.height;f.style.height='620px';}}catch(e){}}"
-    "function _shrinkFrame(){try{var f=window.frameElement;if(f&&f._sh!==undefined){f.style.height=f._sh;}}catch(e){}}"
+    "function _expandFrame(){try{var f=window.frameElement;if(f){f._sh=f.style.height;f.style.height='100vh';f.style.position='fixed';f.style.top='0';f.style.left='0';f.style.width='100vw';f.style.zIndex='99999';}}catch(e){}}"
+    "function _shrinkFrame(){try{var f=window.frameElement;if(f&&f._sh!==undefined){f.style.height=f._sh;f.style.position='';f.style.top='';f.style.left='';f.style.width='';f.style.zIndex='';}}catch(e){}}"
 )
 
 def component_wrap(body_html, extra_css="", extra_js=""):
@@ -292,9 +293,18 @@ def build_accounts_js(source_df):
         "};"
         "function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}"
         "function _expandFrame(){"
-        "try{var f=window.frameElement;if(f){f._sh=f.style.height;f.style.height='620px';}}catch(e){}}"
+        "try{"
+        "var f=window.frameElement;"
+        "if(f){f._sh=f.style.height;f.style.height='100vh';f.style.position='fixed';"
+        "f.style.top='0';f.style.left='0';f.style.width='100vw';f.style.zIndex='99999';}"
+        "}catch(e){}}"
         "function _shrinkFrame(){"
-        "try{var f=window.frameElement;if(f&&f._sh!==undefined){f.style.height=f._sh;}}catch(e){}}"
+        "try{"
+        "var f=window.frameElement;"
+        "if(f&&f._sh!==undefined){"
+        "f.style.height=f._sh;f.style.position='';f.style.top='';"
+        "f.style.left='';f.style.width='';f.style.zIndex='';}"
+        "}catch(e){}}"
         "function openListModal(group,title){"
         "_expandFrame();"
         "var accs=G[group]||[];"
