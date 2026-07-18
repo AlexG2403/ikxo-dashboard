@@ -35,20 +35,22 @@ st.markdown("""
 
 .stTabs [data-baseweb="tab-list"],
 .stTabs [role="tablist"] {
-    background:#1D3461 !important;
+    background:#f0f4f8 !important;
     border-radius:10px 10px 0 0;
     padding:4px 8px 0 8px !important;
     gap:4px !important;
     display:flex !important;
     flex-direction:row !important;
     align-items:flex-end !important;
+    border-bottom:2px solid #1D3461 !important;
 }
 .stTabs [data-baseweb="tab"],
 .stTabs button[role="tab"] {
     background:transparent !important;
+    color:#4B5563 !important;
     border-radius:8px 8px 0 0 !important;
-    padding:9px 16px !important;
-    font-size:13px !important;
+    padding:9px 18px !important;
+    font-size:14px !important;
     font-weight:600 !important;
     border:none !important;
     border-bottom:3px solid transparent !important;
@@ -56,6 +58,13 @@ st.markdown("""
     white-space:nowrap !important;
     min-width:fit-content !important;
     flex-shrink:0 !important;
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"],
+.stTabs button[role="tab"][aria-selected="true"] {
+    background:white !important;
+    color:#1D3461 !important;
+    font-weight:800 !important;
+    border-bottom:3px solid #1D3461 !important;
 }
 .stTabs [data-baseweb="tab-panel"],
 .stTabs [role="tabpanel"] {
@@ -366,43 +375,6 @@ tab_ov, tab_pipe, tab_plan, tab_mat, tab_all = st.tabs([
     "Vue générale", "Pipeline", "Planning", "Matrice", "Tous les comptes"
 ])
 
-# Couleurs onglets via JS direct sur le DOM parent (seule méthode fiable contre BaseWeb/emotion)
-components.html("""
-<script>
-(function(){
-  function fix(){
-    try{
-      var doc=window.parent.document;
-      var btns=doc.querySelectorAll('button[role="tab"]');
-      if(!btns.length) return;
-      for(var i=0;i<btns.length;i++){
-        var b=btns[i];
-        var active=b.getAttribute('aria-selected')==='true';
-        var c=active?'#ffffff':'rgba(255,255,255,0.82)';
-        b.style.setProperty('color',c,'important');
-        if(active){
-          b.style.setProperty('background','rgba(255,255,255,0.2)','important');
-          b.style.setProperty('border-bottom','3px solid #ffffff','important');
-          b.style.setProperty('font-weight','800','important');
-        }
-        var kids=b.querySelectorAll('*');
-        for(var j=0;j<kids.length;j++){
-          kids[j].style.setProperty('color',c,'important');
-        }
-      }
-    }catch(e){}
-  }
-  [0,200,500,1000,2000,3500].forEach(function(t){setTimeout(fix,t);});
-  setInterval(fix,600);
-  try{
-    new MutationObserver(fix).observe(
-      window.parent.document.body,
-      {childList:true,subtree:true,attributeFilter:['aria-selected']}
-    );
-  }catch(e){}
-})();
-</script>
-""", height=0)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — VUE GÉNÉRALE
