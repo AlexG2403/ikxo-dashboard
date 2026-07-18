@@ -46,7 +46,6 @@ st.markdown("""
 .stTabs [data-baseweb="tab"],
 .stTabs button[role="tab"] {
     background:transparent !important;
-    color:rgba(255,255,255,.75) !important;
     border-radius:8px 8px 0 0 !important;
     padding:9px 16px !important;
     font-size:13px !important;
@@ -57,30 +56,6 @@ st.markdown("""
     white-space:nowrap !important;
     min-width:fit-content !important;
     flex-shrink:0 !important;
-}
-.stTabs [data-baseweb="tab"][aria-selected="true"],
-.stTabs button[role="tab"][aria-selected="true"] {
-    background:rgba(255,255,255,.22) !important;
-    color:#ffffff !important;
-    font-weight:800 !important;
-    border-bottom:3px solid #ffffff !important;
-    text-shadow:0 0 12px rgba(255,255,255,.4) !important;
-}
-.stTabs [data-baseweb="tab"] p,
-.stTabs [data-baseweb="tab"] div,
-.stTabs [data-baseweb="tab"] span,
-.stTabs button[role="tab"] p,
-.stTabs button[role="tab"] div,
-.stTabs button[role="tab"] span {
-    color:rgba(255,255,255,.75) !important;
-}
-.stTabs [data-baseweb="tab"][aria-selected="true"] p,
-.stTabs [data-baseweb="tab"][aria-selected="true"] div,
-.stTabs [data-baseweb="tab"][aria-selected="true"] span,
-.stTabs button[role="tab"][aria-selected="true"] p,
-.stTabs button[role="tab"][aria-selected="true"] div,
-.stTabs button[role="tab"][aria-selected="true"] span {
-    color:#ffffff !important;
 }
 .stTabs [data-baseweb="tab-panel"],
 .stTabs [role="tabpanel"] {
@@ -391,42 +366,38 @@ tab_ov, tab_pipe, tab_plan, tab_mat, tab_all = st.tabs([
     "Vue générale", "Pipeline", "Planning", "Matrice", "Tous les comptes"
 ])
 
-# Applique les couleurs onglets directement sur les éléments DOM (bat toute spécificité CSS)
-components.html("""
-<script>
-(function(){
-  function fix(){
-    try{
-      var doc=window.parent.document;
-      var tabs=doc.querySelectorAll('[data-baseweb="tab"],button[role="tab"]');
-      if(!tabs.length){setTimeout(fix,300);return;}
-      tabs.forEach(function(t){
-        var sel=t.getAttribute('aria-selected')==='true';
-        var c=sel?'#ffffff':'rgba(255,255,255,0.8)';
-        t.style.setProperty('color',c,'important');
-        t.querySelectorAll('*').forEach(function(el){
-          el.style.setProperty('color',c,'important');
-        });
-        if(sel){
-          t.style.setProperty('background','rgba(255,255,255,0.2)','important');
-          t.style.setProperty('border-bottom','3px solid #fff','important');
-          t.style.setProperty('font-weight','800','important');
-        }
-      });
-    }catch(e){}
-  }
-  fix();
-  setTimeout(fix,200);
-  setTimeout(fix,800);
-  try{
-    new MutationObserver(fix).observe(
-      window.parent.document.body,
-      {childList:true,subtree:true,attributeFilter:['aria-selected']}
-    );
-  }catch(e){}
-})();
-</script>
-""", height=1)
+# Couleurs onglets via st.html() — injecté inline dans le DOM principal (Streamlit 1.31+)
+_tab_color_css = """<style>
+button[role="tab"],
+[data-baseweb="tab"] {
+    color: rgba(255,255,255,0.85) !important;
+}
+button[role="tab"] p, button[role="tab"] div, button[role="tab"] span,
+button[role="tab"] label, button[role="tab"] strong,
+[data-baseweb="tab"] p, [data-baseweb="tab"] div, [data-baseweb="tab"] span {
+    color: rgba(255,255,255,0.85) !important;
+}
+button[role="tab"][aria-selected="true"],
+[data-baseweb="tab"][aria-selected="true"] {
+    color: #ffffff !important;
+    background: rgba(255,255,255,0.2) !important;
+    border-bottom: 3px solid #ffffff !important;
+    font-weight: 800 !important;
+    text-shadow: 0 0 10px rgba(255,255,255,0.35) !important;
+}
+button[role="tab"][aria-selected="true"] p,
+button[role="tab"][aria-selected="true"] div,
+button[role="tab"][aria-selected="true"] span,
+[data-baseweb="tab"][aria-selected="true"] p,
+[data-baseweb="tab"][aria-selected="true"] div,
+[data-baseweb="tab"][aria-selected="true"] span {
+    color: #ffffff !important;
+}
+</style>"""
+if hasattr(st, 'html'):
+    st.html(_tab_color_css)
+else:
+    st.markdown(_tab_color_css, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — VUE GÉNÉRALE
