@@ -391,33 +391,42 @@ tab_ov, tab_pipe, tab_plan, tab_mat, tab_all = st.tabs([
     "Vue générale", "Pipeline", "Planning", "Matrice", "Tous les comptes"
 ])
 
-# Injecte le CSS onglets directement dans le document parent (fiable sur Streamlit Cloud)
+# Applique les couleurs onglets directement sur les éléments DOM (bat toute spécificité CSS)
 components.html("""
 <script>
 (function(){
-  var css = [
-    ".stTabs [data-baseweb='tab-list'],[.stTabs [role='tablist']{background:#1D3461!important;border-radius:10px 10px 0 0;padding:4px 8px 0!important;gap:4px!important;display:flex!important;flex-wrap:nowrap!important;}",
-    ".stTabs [data-baseweb='tab'],button[role='tab']{background:transparent!important;color:rgba(255,255,255,.75)!important;border-radius:8px 8px 0 0!important;padding:9px 18px!important;font-size:14px!important;font-weight:600!important;border:none!important;border-bottom:3px solid transparent!important;white-space:nowrap!important;min-width:fit-content!important;flex-shrink:0!important;}",
-    ".stTabs [data-baseweb='tab'] p,.stTabs [data-baseweb='tab'] div,.stTabs [data-baseweb='tab'] span,button[role='tab'] p,button[role='tab'] div,button[role='tab'] span{color:rgba(255,255,255,.75)!important;}",
-    ".stTabs [data-baseweb='tab'][aria-selected='true'],button[role='tab'][aria-selected='true']{background:rgba(255,255,255,.2)!important;color:#fff!important;font-weight:800!important;border-bottom:3px solid #fff!important;}",
-    ".stTabs [data-baseweb='tab'][aria-selected='true'] p,.stTabs [data-baseweb='tab'][aria-selected='true'] div,.stTabs [data-baseweb='tab'][aria-selected='true'] span,button[role='tab'][aria-selected='true'] p,button[role='tab'][aria-selected='true'] div,button[role='tab'][aria-selected='true'] span{color:#fff!important;}"
-  ].join('');
-  function inject(){
+  function fix(){
     try{
-      var p=window.parent.document;
-      var id='ikxo-tab-style';
-      if(p.getElementById(id))return;
-      var s=p.createElement('style');
-      s.id=id; s.textContent=css;
-      p.head.appendChild(s);
+      var doc=window.parent.document;
+      var tabs=doc.querySelectorAll('[data-baseweb="tab"],button[role="tab"]');
+      if(!tabs.length){setTimeout(fix,300);return;}
+      tabs.forEach(function(t){
+        var sel=t.getAttribute('aria-selected')==='true';
+        var c=sel?'#ffffff':'rgba(255,255,255,0.8)';
+        t.style.setProperty('color',c,'important');
+        t.querySelectorAll('*').forEach(function(el){
+          el.style.setProperty('color',c,'important');
+        });
+        if(sel){
+          t.style.setProperty('background','rgba(255,255,255,0.2)','important');
+          t.style.setProperty('border-bottom','3px solid #fff','important');
+          t.style.setProperty('font-weight','800','important');
+        }
+      });
     }catch(e){}
   }
-  inject();
-  setTimeout(inject,300);
-  setTimeout(inject,1000);
+  fix();
+  setTimeout(fix,200);
+  setTimeout(fix,800);
+  try{
+    new MutationObserver(fix).observe(
+      window.parent.document.body,
+      {childList:true,subtree:true,attributeFilter:['aria-selected']}
+    );
+  }catch(e){}
 })();
 </script>
-""", height=0)
+""", height=1)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — VUE GÉNÉRALE
