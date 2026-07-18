@@ -66,11 +66,21 @@ st.markdown("""
     border-bottom:3px solid #ffffff !important;
     text-shadow:0 0 12px rgba(255,255,255,.4) !important;
 }
-.stTabs [data-baseweb="tab"] *,
-.stTabs button[role="tab"] * {
-    color:inherit !important;
-    font-size:inherit !important;
-    font-weight:inherit !important;
+.stTabs [data-baseweb="tab"] p,
+.stTabs [data-baseweb="tab"] div,
+.stTabs [data-baseweb="tab"] span,
+.stTabs button[role="tab"] p,
+.stTabs button[role="tab"] div,
+.stTabs button[role="tab"] span {
+    color:rgba(255,255,255,.75) !important;
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"] p,
+.stTabs [data-baseweb="tab"][aria-selected="true"] div,
+.stTabs [data-baseweb="tab"][aria-selected="true"] span,
+.stTabs button[role="tab"][aria-selected="true"] p,
+.stTabs button[role="tab"][aria-selected="true"] div,
+.stTabs button[role="tab"][aria-selected="true"] span {
+    color:#ffffff !important;
 }
 .stTabs [data-baseweb="tab-panel"],
 .stTabs [role="tabpanel"] {
@@ -380,6 +390,34 @@ st.caption("**" + str(len(df)) + " comptes** chargés · " + pd.Timestamp.now().
 tab_ov, tab_pipe, tab_plan, tab_mat, tab_all = st.tabs([
     "Vue générale", "Pipeline", "Planning", "Matrice", "Tous les comptes"
 ])
+
+# Injecte le CSS onglets directement dans le document parent (fiable sur Streamlit Cloud)
+components.html("""
+<script>
+(function(){
+  var css = [
+    ".stTabs [data-baseweb='tab-list'],[.stTabs [role='tablist']{background:#1D3461!important;border-radius:10px 10px 0 0;padding:4px 8px 0!important;gap:4px!important;display:flex!important;flex-wrap:nowrap!important;}",
+    ".stTabs [data-baseweb='tab'],button[role='tab']{background:transparent!important;color:rgba(255,255,255,.75)!important;border-radius:8px 8px 0 0!important;padding:9px 18px!important;font-size:14px!important;font-weight:600!important;border:none!important;border-bottom:3px solid transparent!important;white-space:nowrap!important;min-width:fit-content!important;flex-shrink:0!important;}",
+    ".stTabs [data-baseweb='tab'] p,.stTabs [data-baseweb='tab'] div,.stTabs [data-baseweb='tab'] span,button[role='tab'] p,button[role='tab'] div,button[role='tab'] span{color:rgba(255,255,255,.75)!important;}",
+    ".stTabs [data-baseweb='tab'][aria-selected='true'],button[role='tab'][aria-selected='true']{background:rgba(255,255,255,.2)!important;color:#fff!important;font-weight:800!important;border-bottom:3px solid #fff!important;}",
+    ".stTabs [data-baseweb='tab'][aria-selected='true'] p,.stTabs [data-baseweb='tab'][aria-selected='true'] div,.stTabs [data-baseweb='tab'][aria-selected='true'] span,button[role='tab'][aria-selected='true'] p,button[role='tab'][aria-selected='true'] div,button[role='tab'][aria-selected='true'] span{color:#fff!important;}"
+  ].join('');
+  function inject(){
+    try{
+      var p=window.parent.document;
+      var id='ikxo-tab-style';
+      if(p.getElementById(id))return;
+      var s=p.createElement('style');
+      s.id=id; s.textContent=css;
+      p.head.appendChild(s);
+    }catch(e){}
+  }
+  inject();
+  setTimeout(inject,300);
+  setTimeout(inject,1000);
+})();
+</script>
+""", height=0)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — VUE GÉNÉRALE
