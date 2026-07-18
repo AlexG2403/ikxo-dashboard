@@ -35,39 +35,23 @@ ETAT_CFG = {
 RC_COLORS = {'Alex':'#3B82F6','Clarisse':'#EC4899','Auré':'#10B981','Jerem':'#8B5CF6'}
 MONTHS    = ['Juin 26','Juillet 26','Août 26','Septembre 26','Octobre 26']
 
-# ── SVG LOGO (IKXO) ───────────────────────────────────────────────────────────
-# Navy #1D3461 · Sage green #6BA58A
-# I = solid navy bar
-# K = sage-green left stem + navy arms
-# X = crossing navy strokes
-# O = navy ring + sage-green circle upper-right
-LOGO_SVG = (
-    '<svg viewBox="0 0 432 120" xmlns="http://www.w3.org/2000/svg" height="44" aria-label="IKXO">'
-    '<defs>'
-    '<mask id="omask">'
-    '<circle cx="372" cy="60" r="57" fill="white"/>'
-    '<circle cx="372" cy="60" r="28" fill="black"/>'
-    '</mask>'
-    '<clipPath id="xclip"><rect x="151" y="0" width="82" height="120"/></clipPath>'
-    '</defs>'
-    '<rect x="0" y="2" width="32" height="116" fill="#1D3461" rx="2"/>'
-    '<rect x="52" y="2" width="15" height="116" fill="#6BA58A" rx="1"/>'
-    '<polygon points="67,2 67,62 130,2" fill="#1D3461"/>'
-    '<polygon points="67,62 67,118 130,118" fill="#1D3461"/>'
-    '<g clip-path="url(#xclip)">'
-    '<line x1="152" y1="0" x2="233" y2="120" stroke="#1D3461" stroke-width="30" stroke-linecap="butt"/>'
-    '<line x1="233" y1="0" x2="152" y2="120" stroke="#1D3461" stroke-width="30" stroke-linecap="butt"/>'
-    '</g>'
-    '<circle cx="372" cy="60" r="57" fill="#1D3461"/>'
-    '<circle cx="400" cy="33" r="50" fill="#6BA58A" mask="url(#omask)"/>'
-    '<circle cx="372" cy="60" r="28" fill="#f0f4f8"/>'
-    '</svg>'
+# ── LOGO (IKXO) ───────────────────────────────────────────────────────────────
+# Navy #1D3461 · Sage green #6BA58A accent on K
+LOGO_HTML = (
+    '<div style="font-size:30px;font-weight:900;letter-spacing:-1px;'
+    'font-family:Inter,system-ui,sans-serif;line-height:1;padding-top:8px;'
+    'display:inline-flex;align-items:center;gap:0">'
+    '<span style="color:#1D3461">I</span>'
+    '<span style="color:#6BA58A">K</span>'
+    '<span style="color:#1D3461">XO</span>'
+    '</div>'
 )
 
 # ── JS ONCLICK CONSTANTS ──────────────────────────────────────────────────────
 # Opens account-detail modal (pipeline cards)
 _OA = (
     "var m=document.getElementById('ikxo-modal');"
+    "if(m&&m.parentElement!==document.body)document.body.appendChild(m);"
     "document.getElementById('im-nom').textContent=this.dataset.nom;"
     "document.getElementById('im-rc').textContent=this.dataset.rc?'RC : '+this.dataset.rc:'';"
     "document.getElementById('im-secteur').textContent=this.dataset.sec;"
@@ -81,9 +65,11 @@ _OA = (
 
 # Opens account-list modal (metrics / RC bars / sector bars)
 _OL = (
+    "var lm=document.getElementById('ikxo-list-modal');"
+    "if(lm&&lm.parentElement!==document.body)document.body.appendChild(lm);"
     "document.getElementById('ilm-title').textContent=this.dataset.title;"
     "document.getElementById('ilm-body').innerHTML=this.dataset.html;"
-    "document.getElementById('ikxo-list-modal').style.display='flex'"
+    "lm.style.display='flex'"
 )
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -104,18 +90,21 @@ div[data-testid="metric-container"] {
 }
 
 /* ── TABS ── */
-.stTabs [data-baseweb="tab-list"] {
-    gap:0; background:#1D3461;
+.stTabs [data-baseweb="tab-list"],
+.stTabs [role="tablist"] {
+    gap:0; background:#1D3461 !important;
     padding:0 8px; border-radius:10px 10px 0 0;
 }
-.stTabs [data-baseweb="tab"] {
-    background:transparent; color:rgba(255,255,255,.6);
+.stTabs [data-baseweb="tab"],
+.stTabs button[role="tab"] {
+    background:transparent !important; color:rgba(255,255,255,.6) !important;
     border-radius:8px 8px 0 0; padding:10px 18px; font-size:13px;
     border-bottom:2px solid transparent; transition:all .15s;
 }
-.stTabs [aria-selected="true"] {
-    background:rgba(255,255,255,0.18) !important;
-    color:white !important; font-weight:700;
+.stTabs [aria-selected="true"],
+.stTabs button[role="tab"][aria-selected="true"] {
+    background:rgba(255,255,255,0.22) !important;
+    color:white !important; font-weight:700 !important;
     border-bottom:2px solid white !important;
 }
 .stTabs [data-baseweb="tab-panel"] {
@@ -336,11 +325,11 @@ def pot_bar_html(val):
             f'</div><span style="font-size:10px;color:#9ca3af">{int(val)}/5</span></div>')
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
-h1, h2, h3 = st.columns([1, 7, 1])
+h1, h2, h3 = st.columns([2, 6, 1])
 with h1:
-    st.markdown(f'<div style="padding-top:6px">{LOGO_SVG}</div>', unsafe_allow_html=True)
+    st.markdown(LOGO_HTML, unsafe_allow_html=True)
 with h2:
-    st.markdown("## 👩‍🚀 Suivi Comptes Stratégiques")
+    st.markdown("## Suivi Comptes Stratégiques")
 with h3:
     st.markdown("<div style='padding-top:18px'>", unsafe_allow_html=True)
     if st.button("🔄 Rafraîchir"):
@@ -564,17 +553,33 @@ with tab_plan:
             render_html(etat_summary)
             rows_parts = []
             for _, acc in mdf.iterrows():
-                rc_c = RC_COLORS.get(acc.rc,'#9CA3AF')
-                pot  = f"Pot.{int(acc.potentiel)}/5" if pd.notna(acc.potentiel) else ""
+                rc_c    = RC_COLORS.get(acc.rc,'#9CA3AF')
+                pot     = (f"Pot.{int(acc.potentiel)}/5") if pd.notna(acc.potentiel) else ""
+                pot_val = str(int(acc.potentiel)) if pd.notna(acc.potentiel) else ""
+                acc_val = str(int(acc.accessibilite)) if pd.notna(acc.accessibilite) else ""
+                ebadge  = he(etat_badge(acc.etat))
+                date_v  = acc.date_attaque or ""
+                rc_tag  = ('<span style="color:' + rc_c + ';font-weight:700;font-size:12px">' + he(acc.rc) + '</span>') if acc.rc else ''
+                pot_tag = ('<span style="font-size:11px;color:#9ca3af">' + pot + '</span>') if pot else ''
                 rows_parts.append(
-                    f'<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;border-bottom:1px solid #f0f0f0">'
-                    f'<div><a href="{acc.url}" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none">{he(acc.nom)}</a>'
-                    f'<span style="font-size:11px;color:#9ca3af;margin-left:8px">{he(acc.secteur)}</span></div>'
-                    f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
-                    f'{etat_badge(acc.etat)}'
-                    f'{"<span style=color:"+rc_c+";font-weight:700;font-size:12px>"+he(acc.rc)+"</span>" if acc.rc else ""}'
-                    f'{"<span style=font-size:11px;color:#9ca3af>"+pot+"</span>" if pot else ""}'
-                    f'</div></div>'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;'
+                    'padding:7px 4px;border-bottom:1px solid #f0f0f0;cursor:pointer;border-radius:4px"'
+                    ' data-nom="' + he(acc.nom, quote=True) + '"'
+                    ' data-rc="' + he(acc.rc, quote=True) + '"'
+                    ' data-sec="' + he(acc.secteur, quote=True) + '"'
+                    ' data-date="' + he(date_v, quote=True) + '"'
+                    ' data-pot="' + pot_val + '"'
+                    ' data-acc="' + acc_val + '"'
+                    ' data-url="' + he(acc.url, quote=True) + '"'
+                    ' data-ebadge="' + ebadge + '"'
+                    ' onclick="' + _OA + '">'
+                    '<div>'
+                    '<span style="font-weight:600;color:#1e293b;font-size:14px">' + he(acc.nom) + '</span>'
+                    '<span style="font-size:11px;color:#9ca3af;margin-left:8px">' + he(acc.secteur) + '</span>'
+                    '</div>'
+                    '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
+                    + etat_badge(acc.etat) + rc_tag + pot_tag +
+                    '</div></div>'
                 )
             st.markdown(''.join(rows_parts), unsafe_allow_html=True)
 
