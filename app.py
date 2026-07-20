@@ -281,7 +281,7 @@ def build_accounts_js(source_df):
         "var G={"
         "total:ALL,"
         "strat:ALL.filter(function(a){return a.typ==='Stratégique';}),"
-        "closing:ALL.filter(function(a){return['1 rdv','Plusieurs rdv','Besoin','Soutenance'].indexOf(a.etat)>=0;}),"
+        "closing:ALL.filter(function(a){return['Besoin','Soutenance'].indexOf(a.etat)>=0;}),"
         "clients:ALL.filter(function(a){return a.etat==='Client';}),"
         "};"
         "function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}"
@@ -384,7 +384,7 @@ st.markdown(
 if page == "Vue générale":
     total    = len(df)
     clients  = int((df.etat == 'Client').sum())
-    en_cours = int(df.etat.isin(['1 rdv','Plusieurs rdv','Besoin','Soutenance']).sum())
+    en_cours = int(df.etat.isin(['Besoin','Soutenance']).sum())
     strat    = int((df.typologie == 'Stratégique').sum())
 
     accs_js = build_accounts_js(df)
@@ -592,83 +592,68 @@ elif page == "Matrice":
     mat_df   = df.dropna(subset=['potentiel','accessibilite']).copy()
     no_score = df[df.potentiel.isna() | df.accessibilite.isna()]
 
-    st.markdown("**Matrice Potentiel × Accessibilité** · " + str(len(mat_df)) + " scorés, " + str(len(no_score)) + " sans score")
-    st.caption("Couleur = RC · Survolez un point pour le détail")
-
-    if not mat_df.empty:
-        fig = go.Figure()
-        for x0,y0,x1,y1,c in [(3,3,5.5,5.5,"rgba(134,239,172,0.15)"),(0.5,3,3,5.5,"rgba(253,186,116,0.15)"),
-                                (3,0.5,5.5,3,"rgba(147,197,253,0.15)"),(0.5,0.5,3,3,"rgba(156,163,175,0.10)")]:
-            fig.add_shape(type="rect",x0=x0,y0=y0,x1=x1,y1=y1,fillcolor=c,line_width=0,layer="below")
-        fig.add_shape(type="line",x0=3,y0=0.5,x1=3,y1=5.5,line=dict(color="#d1d5db",width=1.5,dash="dash"))
-        fig.add_shape(type="line",x0=0.5,y0=3,x1=5.5,y1=3,line=dict(color="#d1d5db",width=1.5,dash="dash"))
-        for txt,x,y,c in [("<b>Priorité 1</b>",4.2,5.25,"#059669"),("<b>Priorité 2</b>",1.5,5.25,"#EA580C"),
-                           ("<b>A explorer</b>",4.2,0.75,"#3B82F6"),("<b>Faible prio</b>",1.2,0.75,"#9CA3AF")]:
-            fig.add_annotation(x=x,y=y,text=txt,showarrow=False,font=dict(size=11,color=c),
-                               bgcolor="rgba(255,255,255,0.75)",borderpad=3)
-        for rc, color in RC_COLORS.items():
-            rdf = mat_df[mat_df.rc == rc]
-            if rdf.empty: continue
-            fig.add_trace(go.Scatter(
-                x=rdf.accessibilite, y=rdf.potentiel, mode='markers', name=rc,
-                marker=dict(color=color,size=14,line=dict(color='white',width=2),opacity=0.88),
-                text=rdf.nom,
-                customdata=list(zip(rdf.etat,rdf.secteur,rdf.rc)),
-                hovertemplate="<b>%{text}</b><br>Acc:%{x}/5 · Pot:%{y}/5<br>%{customdata[0]}<extra></extra>",
-            ))
-        others = mat_df[~mat_df.rc.isin(RC_COLORS)]
-        if not others.empty:
-            fig.add_trace(go.Scatter(x=others.accessibilite,y=others.potentiel,mode='markers',name='Autre',
-                marker=dict(color='#9CA3AF',size=14,line=dict(color='white',width=2),opacity=0.88),
-                text=others.nom,hovertemplate="<b>%{text}</b><br>Acc:%{x}/5 · Pot:%{y}/5<extra></extra>"))
-        fig.update_layout(
-            xaxis=dict(title="Accessibilité",range=[0.5,5.5],tickvals=[1,2,3,4,5],showgrid=True,gridcolor='#f3f4f6'),
-            yaxis=dict(title="Potentiel",range=[0.5,5.5],tickvals=[1,2,3,4,5],showgrid=True,gridcolor='#f3f4f6'),
-            legend=dict(orientation='h',y=1.08),
-            margin=dict(l=40,r=20,t=50,b=40), height=480,
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("---")
     p1 = mat_df[(mat_df.potentiel>=3)&(mat_df.accessibilite>=3)].sort_values(['potentiel','accessibilite'],ascending=False)
     p2 = mat_df[(mat_df.potentiel>=3)&(mat_df.accessibilite<3)].sort_values('potentiel',ascending=False)
     p3 = mat_df[(mat_df.potentiel<3)&(mat_df.accessibilite>=3)].sort_values('accessibilite',ascending=False)
     p4 = mat_df[(mat_df.potentiel<3)&(mat_df.accessibilite<3)]
 
-    def quadrant_list(qdf, label, color, border, limit=8):
-        rows = []
-        for _, acc in qdf.head(limit).iterrows():
+    def dots(val, color, max_v=5):
+        s = ''
+        for i in range(1, max_v+1):
+            s += '<span style="color:' + (color if i <= val else '#e5e7eb') + ';font-size:12px">●</span>'
+        return s
+
+    def quad_html(qdf, title, subtitle, border, color, bg):
+        items = ''
+        for _, acc in qdf.iterrows():
             rc_c = RC_COLORS.get(acc.rc,'#9CA3AF')
-            rows.append(
-                '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-bottom:1px solid #f5f5f5;font-size:13px">'
-                '<div><a href="' + acc.url + '" target="_blank" style="font-weight:600;color:#1e293b;text-decoration:none">' + he(acc.nom) + '</a>'
-                '<span style="font-size:11px;color:#9ca3af;margin-left:6px">' + he(acc.secteur) + '</span></div>'
-                '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:8px">'
-                + (('<span style="color:' + rc_c + ';font-weight:700;font-size:12px">' + he(acc.rc) + '</span>') if acc.rc else '')
-                + '<span style="font-size:11px;color:#9ca3af">' + str(int(acc.potentiel)) + '/' + str(int(acc.accessibilite)) + '</span>'
-                + etat_badge(acc.etat)
-                + '</div></div>'
+            pot  = int(acc.potentiel)
+            ac_v = int(acc.accessibilite)
+            cfg  = ETAT_CFG.get(acc.etat, {"color":"#6B7280","bg":"#F3F4F6"})
+            items += (
+                '<div class="qcard"' + acc_data_attrs(acc) + ' onclick="_expandFrame();openModal(this)">'
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+                '<div style="font-weight:700;font-size:13px;color:#1e293b;line-height:1.3">' + he(acc.nom) + '</div>'
+                + (('<div style="color:' + rc_c + ';font-weight:700;font-size:11px;flex-shrink:0;margin-left:8px">' + he(acc.rc) + '</div>') if acc.rc else '')
+                + '</div>'
+                '<div style="font-size:11px;color:#9ca3af;margin:2px 0 6px">' + he(acc.secteur) + '</div>'
+                '<div style="display:flex;justify-content:space-between;align-items:center">'
+                '<div>'
+                '<div style="font-size:10px;color:#9ca3af;margin-bottom:1px">Pot. ' + dots(pot, color) + '</div>'
+                '<div style="font-size:10px;color:#9ca3af">Acc. ' + dots(ac_v, '#3B82F6') + '</div>'
+                '</div>'
+                '<span style="background:' + cfg['bg'] + ';color:' + cfg['color'] + ';padding:2px 7px;border-radius:9999px;font-size:10px;font-weight:600">' + he(acc.etat) + '</span>'
+                '</div></div>'
             )
-        items = ''.join(rows)
-        if len(qdf) > limit:
-            items += '<div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px">+ ' + str(len(qdf)-limit) + ' autres</div>'
         if not items:
-            items = '<div style="text-align:center;font-size:12px;color:#d1d5db;padding:12px">Aucun compte</div>'
+            items = '<div style="text-align:center;color:#d1d5db;padding:20px;font-size:13px">Aucun compte</div>'
         return (
-            '<div style="border-left:4px solid ' + border + ';padding-left:12px;margin-bottom:8px">'
-            '<span style="font-weight:700;color:' + color + '">' + label + '</span>'
-            ' <span style="color:#9ca3af">(' + str(len(qdf)) + ')</span></div>'
-            '<div style="background:white;border:1px solid ' + border + ';border-radius:8px;overflow:hidden">' + items + '</div>'
+            '<div style="background:' + bg + ';border:2px solid ' + border + ';border-radius:12px;overflow:hidden">'
+            '<div style="padding:12px 16px;border-bottom:2px solid ' + border + ';display:flex;justify-content:space-between;align-items:center">'
+            '<div><div style="font-weight:800;font-size:14px;color:' + color + '">' + title + '</div>'
+            '<div style="font-size:11px;color:#9ca3af">' + subtitle + '</div></div>'
+            '<div style="font-size:22px;font-weight:900;color:' + color + '">' + str(len(qdf)) + '</div>'
+            '</div>'
+            '<div style="padding:8px;display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto">'
+            + items + '</div></div>'
         )
 
-    q1, q2 = st.columns(2)
-    with q1: st.markdown(quadrant_list(p1,"Priorité 1","#059669","#86EFAC"), unsafe_allow_html=True)
-    with q2: st.markdown(quadrant_list(p2,"Priorité 2","#EA580C","#FED7AA"), unsafe_allow_html=True)
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    q3, q4 = st.columns(2)
-    with q3: st.markdown(quadrant_list(p3,"A explorer","#3B82F6","#BFDBFE",6), unsafe_allow_html=True)
-    with q4: st.markdown(quadrant_list(p4,"Faible priorité","#9CA3AF","#E5E7EB",6), unsafe_allow_html=True)
+    mat_css = (
+        ".qcard{background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;"
+        "cursor:pointer;transition:box-shadow .15s,transform .15s;}"
+        ".qcard:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-2px);}"
+    )
+
+    q_body = (
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
+        + quad_html(p1, "Priorité 1", "Fort potentiel · Accessible", "#86EFAC", "#059669", "#F0FDF4")
+        + quad_html(p2, "Priorité 2", "Fort potentiel · Difficile d'accès", "#FED7AA", "#EA580C", "#FFF7ED")
+        + quad_html(p3, "À explorer", "Faible potentiel · Accessible", "#BFDBFE", "#3B82F6", "#EFF6FF")
+        + quad_html(p4, "Faible priorité", "Faible potentiel · Difficile d'accès", "#E5E7EB", "#9CA3AF", "#F9FAFB")
+        + '</div>'
+    )
+
+    components.html(component_wrap(q_body, mat_css), height=920, scrolling=True)
 
     if not no_score.empty:
         st.warning("**" + str(len(no_score)) + " compte(s) sans score** : "
@@ -681,10 +666,13 @@ elif page == "Matrice":
 elif page == "Tous les comptes":
     st.markdown("**Tous les comptes (" + str(len(df)) + ")** — cliquez sur un nom pour le détail")
 
-    col_s, col_rc, col_et = st.columns([3,1,2])
+    col_s, col_rc, col_et, col_sort = st.columns([3, 1, 2, 2])
     search    = col_s.text_input("Rechercher", placeholder="Nom ou secteur...", label_visibility="collapsed")
     rc_filter = col_rc.selectbox("RC", ["Tous"] + sorted(df.rc[df.rc!=''].unique().tolist()), label_visibility="collapsed")
     et_filter = col_et.selectbox("État", ["Tous les états"] + PIPELINE_STAGES + SIDE_STAGES, label_visibility="collapsed")
+    sort_by   = col_sort.selectbox("Trier par", [
+        "Nom (A→Z)", "Nom (Z→A)", "Secteur", "Potentiel ↓", "Potentiel ↑", "Accessibilité ↓", "Accessibilité ↑"
+    ], label_visibility="collapsed")
 
     filt = df.copy()
     if search:
@@ -694,6 +682,18 @@ elif page == "Tous les comptes":
         filt = filt[filt.rc == rc_filter]
     if et_filter != "Tous les états":
         filt = filt[filt.etat == et_filter]
+
+    _sort_map = {
+        "Nom (A→Z)":       ("nom", True),
+        "Nom (Z→A)":       ("nom", False),
+        "Secteur":         ("secteur", True),
+        "Potentiel ↓":     ("potentiel", False),
+        "Potentiel ↑":     ("potentiel", True),
+        "Accessibilité ↓": ("accessibilite", False),
+        "Accessibilité ↑": ("accessibilite", True),
+    }
+    _scol, _sasc = _sort_map[sort_by]
+    filt = filt.sort_values(_scol, ascending=_sasc, na_position='last')
 
     st.caption(str(len(filt)) + " compte(s) affichés sur " + str(len(df)))
 
